@@ -335,6 +335,34 @@ body {
   margin-bottom: 12px;
 }
 
+.installation-note ol {
+  margin: 16px 0;
+  padding-left: 24px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.installation-note li {
+  margin-bottom: 8px;
+  padding-left: 8px;
+}
+
+.installation-note li:last-child {
+  margin-bottom: 12px;
+}
+
+.installation-note li code {
+  display: inline;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  color: var(--accent);
+  margin: 0 4px;
+}
+
 .installation-note code {
   display: block;
   padding: 12px;
@@ -346,6 +374,17 @@ body {
   color: var(--accent);
   margin-bottom: 12px;
   word-break: break-all;
+}
+
+.installation-note li code {
+  display: inline;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  color: var(--accent);
+  margin: 0 4px;
 }
 
 .installation-note a {

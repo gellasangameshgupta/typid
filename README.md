@@ -34,48 +34,37 @@ Alternatively, download directly from [Releases](../../releases):
 
 1. Download the `.zip` file for your Mac (ARM64 for M1/M2/M3, or Intel)
 2. Extract the ZIP file (you'll get `Typid.app`)
-3. **Before moving to Applications:** If you see "Typid is damaged" when you try to open it, follow the troubleshooting steps below
-4. Once the app opens successfully, drag `Typid.app` to your Applications folder
+3. Drag `Typid.app` from Downloads to your Applications folder
+4. Open **Terminal** and run this command to remove the security flag:
+   ```bash
+   cd /Applications && xattr -cr Typid.app && open Typid.app
+   ```
+5. The app will now open! macOS will remember your approval going forward.
 
-> **Important:** Because the app isn't signed with an Apple Developer certificate, macOS Gatekeeper will block unsigned apps. Open the app **once from where you extracted it** before moving it to Applications.
+> **Note:** Because the app isn't signed with an Apple Developer certificate, macOS shows a security warning. This one-time command allows the app to run normally.
 
 ### Troubleshooting macOS Installation
 
 **"Typid is damaged and can't be opened"**
 
-This error occurs because the app is unsigned and macOS Gatekeeper is blocking it. Here are 3 ways to fix it:
+If you see this error, make sure you've moved the app to Applications first, then use the Terminal command above.
 
-**Method 1: Right-click to Open (Easiest)**
-1. Navigate to where you extracted `Typid.app` (likely in Downloads)
-2. Right-click (or Ctrl-click) on the app
-3. Select "Open" from the menu
-4. Click "Open" in the confirmation dialog
-5. The app will open and macOS will remember it for future launches
+**Alternative methods to fix:**
 
-**Method 2: Clear from Security & Privacy**
+**Method 1: Right-click to Open**
+1. Right-click (or Ctrl-click) on `Typid.app` in Applications
+2. Select "Open" from the menu
+3. Click "Open" in the confirmation dialog
+4. The app will open and macOS will remember it
+
+**Method 2: System Settings**
 1. Go to **System Settings** → **Privacy & Security**
 2. Scroll down to find "Typid was blocked"
 3. Click "Open Anyway"
 4. Enter your password if prompted
 
-**Method 3: Remove Quarantine Attribute (Terminal)**
-```bash
-# Navigate to where Typid.app is (replace with actual path)
-cd ~/Downloads  # or wherever you extracted it
-
-# Remove quarantine flag (allows unsigned apps)
-xattr -cr Typid.app
-
-# Now open normally
-open Typid.app
-```
-
-**Pro tip:** If Typid.app is already in Applications and you get the error, use:
-```bash
-cd /Applications
-xattr -cr Typid.app
-open Typid.app
-```
+**After first successful launch:**
+The app will launch normally without warnings in the future. macOS will remember your approval.
 
 **After first successful launch:**
 The app will launch normally without warnings in the future. macOS will remember your approval.

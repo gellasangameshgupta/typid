@@ -150,9 +150,13 @@ function DownloadPage() {
           {macDownloads.length > 0 && (
             <div className="installation-note">
               <h4>macOS Installation Note</h4>
-              <p>If you see "Typid is damaged", open it from where you extracted it first (in Downloads), then move to Applications. Or run:</p>
-              <code>cd ~/Downloads && xattr -cr Typid.app && open Typid.app</code>
-              <a href={releaseInfo.htmlUrl} target="_blank" rel="noopener noreferrer">View full instructions →</a>
+              <p>Follow these exact steps:</p>
+              <ol>
+                <li>Extract the downloaded ZIP file (Typid.app will appear in Downloads)</li>
+                <li>Drag Typid.app from Downloads to your Applications folder</li>
+                <li>Open Terminal and run: <code>cd /Applications && xattr -cr Typid.app && open Typid.app</code></li>
+              </ol>
+              <p>The app will now open! macOS will remember your approval going forward.</p>
             </div>
           )}
 
