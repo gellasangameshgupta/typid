@@ -1,6 +1,6 @@
 {
   "name": "typid",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "A minimal, beautiful Markdown editor",
   "author": "Sangamesh Gella <sangamesh@example.com>",
   "license": "MIT",
@@ -51,6 +51,7 @@
     "appId": "com.typid.app",
     "productName": "Typid",
     "copyright": "Copyright © 2026 Sangamesh Gella",
+    "afterSign": "scripts/after-sign.js",
     "publish": {
       "provider": "github",
       "owner": "gellasangameshgupta",
@@ -67,13 +68,6 @@
     ],
     "mac": {
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
         {
           "target": "zip",
           "arch": [
