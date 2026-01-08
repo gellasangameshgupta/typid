@@ -1,6 +1,6 @@
 {
   "name": "typid",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A minimal, beautiful Markdown editor",
   "author": "Your Name <your@email.com>",
   "license": "MIT",
@@ -83,10 +83,9 @@
       "icon": "build/icon.icns",
       "category": "public.app-category.productivity",
       "darkModeSupport": true,
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
+      "identity": null,
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
     },
     "dmg": {
       "title": "${productName} ${version}",

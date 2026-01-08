@@ -81,7 +81,12 @@ autoUpdater.on('update-downloaded', (info) => {
     defaultId: 0
   }).then((result) => {
     if (result.response === 0) {
-      autoUpdater.quitAndInstall()
+      log.info('User chose to restart - calling quitAndInstall()')
+      // Force quit and install - isSilent: false shows progress, isForceRunAfter: true relaunches app
+      setImmediate(() => {
+        app.removeAllListeners('window-all-closed')
+        autoUpdater.quitAndInstall(false, true)
+      })
     }
   })
 })
