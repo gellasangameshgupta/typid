@@ -17,7 +17,9 @@ A minimal, beautiful Markdown editor inspired by Typora.
 
 ## Download
 
-Download the latest version for your platform from [Releases](../../releases):
+**Web Download Page**: Visit the [Download Page](https://gellasangameshgupta.github.io/typid/) to get the latest version for your platform - it will auto-detect your OS and recommend the appropriate download.
+
+Alternatively, download directly from [Releases](../../releases):
 
 | Platform | Download |
 |----------|----------|

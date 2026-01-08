@@ -1,0 +1,294 @@
+/* Download Page Styles - Matching Typid's Minimal Aesthetic */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  color: #333;
+  line-height: 1.6;
+}
+
+.download-page {
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.hero {
+  background: white;
+  border-radius: 20px;
+  padding: 60px 40px;
+  margin-bottom: 40px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.app-name {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 64px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 16px;
+  letter-spacing: -2px;
+}
+
+.tagline {
+  font-size: 20px;
+  color: #666;
+  margin-bottom: 32px;
+  font-weight: 400;
+}
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+.version-date {
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+.recommended-badge {
+  background: #f0fdf4;
+  color: #16a34a;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 15px;
+  display: inline-block;
+}
+
+.loading,
+.error {
+  padding: 20px;
+  border-radius: 10px;
+  margin-top: 20px;
+}
+
+.loading {
+  color: #666;
+  background: #f5f5f5;
+}
+
+.error {
+  color: #dc2626;
+  background: #fef2f2;
+  margin-bottom: 20px;
+}
+
+.retry-button {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.retry-button:hover {
+  background: #5568d3;
+  transform: translateY(-1px);
+}
+
+.download-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.download-section {
+  position: relative;
+  background: white;
+  border-radius: 16px;
+  padding: 32px 40px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  text-align: left;
+  transition: all 0.2s;
+}
+
+.download-section:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.12);
+}
+
+.download-section.recommended {
+  border: 2px solid #16a34a;
+  background: linear-gradient(to bottom, #f0fdf4, white);
+}
+
+.ribbon {
+  position: absolute;
+  top: -12px;
+  right: 24px;
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  color: white;
+  padding: 6px 16px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.3);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border-radius: 12px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.section-title {
+  font-size: 28px;
+  color: #333;
+  font-weight: 600;
+}
+
+.download-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.download-button {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+  width: 100%;
+}
+
+.button.primary {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+}
+
+.button.primary:hover {
+  background: linear-gradient(135deg, #5568d3, #6a4190);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.button-icon {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.button-text {
+  flex: 1;
+  font-weight: 600;
+}
+
+.download-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+}
+
+.file-size {
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+}
+
+.file-name {
+  font-size: 13px;
+  color: #999;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.footer {
+  margin-top: 40px;
+}
+
+.github-link {
+  color: white;
+  font-size: 16px;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 12px 24px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  transition: all 0.2s;
+  display: inline-block;
+}
+
+.github-link:hover {
+  background: rgba(255, 255, 255, 0.3);
+  text-decoration: none;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 40px 24px;
+  }
+
+  .app-name {
+    font-size: 48px;
+  }
+
+  .tagline {
+    font-size: 18px;
+  }
+
+  .download-section {
+    padding: 24px;
+  }
+
+  .icon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .section-title {
+    font-size: 24px;
+  }
+}
