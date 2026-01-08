@@ -1,6 +1,6 @@
 # Typid
 
-A minimal, beautiful Markdown editor inspired by Typora.
+A minimal, beautiful Markdown editor.
 
 ![Typid Screenshot](docs/screenshot.png)
 
