@@ -1,8 +1,8 @@
 {
   "name": "typid",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A minimal, beautiful Markdown editor",
-  "author": "Your Name <your@email.com>",
+  "author": "Sangamesh Gella",
   "license": "MIT",
   "main": "dist-electron/main.js",
   "scripts": {

@@ -43,6 +43,8 @@ jobs:
         run: npm run publish:${{ matrix.platform }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Completely disable code signing on macOS
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       # For manual triggers (workflow_dispatch), just build without publishing
       - name: Build only
@@ -50,6 +52,7 @@ jobs:
         run: npm run build:${{ matrix.platform }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
