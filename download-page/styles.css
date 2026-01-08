@@ -312,6 +312,53 @@ body {
   background: var(--text-muted);
 }
 
+/* Installation Note */
+.installation-note {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 16px;
+  text-align: left;
+}
+
+.installation-note h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.installation-note p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.installation-note code {
+  display: block;
+  padding: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent);
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+
+.installation-note a {
+  font-size: 14px;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.installation-note a:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 768px) {
   .app-name {
     font-size: 36px;

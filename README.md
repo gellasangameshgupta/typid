@@ -39,6 +39,39 @@ Alternatively, download directly from [Releases](../../releases):
 
 > **Note**: Since the app isn't signed with an Apple Developer certificate, macOS will show a warning. This is normal for open-source apps. Right-click → Open bypasses this.
 
+### Troubleshooting macOS Installation
+
+**"Typid is damaged and can't be opened"**
+
+This error occurs because the app is unsigned and macOS Gatekeeper is blocking it. Here are 3 ways to fix it:
+
+**Method 1: Right-click to Open (Easiest)**
+1. Right-click (or Ctrl-click) on `Typid.app`
+2. Select "Open" from the menu
+3. Click "Open" in the confirmation dialog
+4. The app will open and macOS will remember it for future launches
+
+**Method 2: Clear from Security & Privacy**
+1. Go to **System Settings** → **Privacy & Security**
+2. Scroll down to find "Typid was blocked"
+3. Click "Open Anyway"
+4. Enter your password if prompted
+
+**Method 3: Remove Quarantine Attribute (Terminal)**
+```bash
+# Navigate to Applications folder
+cd /Applications
+
+# Remove quarantine flag (allows unsigned apps)
+xattr -cr Typid.app
+
+# Now open normally
+open Typid.app
+```
+
+**After first successful launch:**
+The app will launch normally without warnings in the future. macOS will remember your approval.
+
 ### Windows
 
 1. Download the `.exe` installer

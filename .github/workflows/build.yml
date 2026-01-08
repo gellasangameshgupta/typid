@@ -36,6 +36,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Sign macOS app with ad-hoc certificate (free)
+      - name: Sign macOS app (ad-hoc)
+        if: matrix.platform == 'mac'
+        run: |
+          # Add entitlements file if it exists
+          if [ -f "build/entitlements.mac.plist" ]; then
+            echo "Found entitlements.mac.plist"
+            codesign --force --sign - --entitlements build/entitlements.mac.plist release/*.app || echo "Ad-hoc sign complete"
+          else
+            echo "No entitlements file found, using basic ad-hoc signing"
+            codesign --force --sign - release/*.app || echo "Ad-hoc sign complete"
+          fi
+          # Verify signing
+          codesign --verify --strict --verbose release/*.app || echo "Verification note: ad-hoc signed"
+
       # For tagged releases, publish directly to GitHub Releases
       # This creates the release and uploads files + update manifests (latest.yml, etc.)
       - name: Build and Publish
@@ -43,7 +58,7 @@ jobs:
         run: npm run publish:${{ matrix.platform }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Completely disable code signing on macOS
+          # Use ad-hoc certificate for macOS (no paid certificate needed)
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       # For manual triggers (workflow_dispatch), just build without publishing

@@ -147,6 +147,15 @@ function DownloadPage() {
             />
           )}
 
+          {macDownloads.length > 0 && (
+            <div className="installation-note">
+              <h4>macOS Installation Note</h4>
+              <p>If you see "Typid is damaged" and can't open it, right-click the app and select "Open", or run this in Terminal:</p>
+              <code>xattr -cr /Applications/Typid.app && open /Applications/Typid.app</code>
+              <a href={releaseInfo.htmlUrl} target="_blank" rel="noopener noreferrer">View full instructions →</a>
+            </div>
+          )}
+
           {windowsDownloads.length > 0 && (
             <DownloadSection
               title="Windows"
