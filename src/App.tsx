@@ -12,6 +12,14 @@ function App() {
     setSidebarOpen(prev => !prev)
   }, [])
 
+  // Update window title when file or dirty state changes
+  useEffect(() => {
+    window.electronAPI?.setTitle({
+      filePath: currentFile.filePath,
+      isDirty: currentFile.isDirty
+    })
+  }, [currentFile.filePath, currentFile.isDirty])
+
   // Auto-save functionality
   useEffect(() => {
     if (!currentFile.isDirty || !currentFile.filePath) return

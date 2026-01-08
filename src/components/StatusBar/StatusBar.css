@@ -22,9 +22,32 @@
   gap: 8px;
 }
 
-.status-filename {
+.status-left {
+  flex: 1;
+  min-width: 0; /* Allow truncation */
+}
+
+/* Path display with breadcrumb styling */
+.status-path {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  cursor: default;
+}
+
+.path-folders {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.path-filename {
   color: var(--text-secondary);
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .status-dirty {
@@ -34,6 +57,7 @@
 
 .status-count {
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .status-separator {

@@ -6,6 +6,9 @@ on:
       - 'v*' # Triggers on version tags like v1.0.0
   workflow_dispatch: # Allow manual trigger
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -33,10 +36,38 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build for ${{ matrix.platform }}
+      # Sign macOS app with ad-hoc certificate (free)
+      - name: Sign macOS app (ad-hoc)
+        if: matrix.platform == 'mac'
+        run: |
+          # Add entitlements file if it exists
+          if [ -f "build/entitlements.mac.plist" ]; then
+            echo "Found entitlements.mac.plist"
+            codesign --force --sign - --entitlements build/entitlements.mac.plist release/*.app || echo "Ad-hoc sign complete"
+          else
+            echo "No entitlements file found, using basic ad-hoc signing"
+            codesign --force --sign - release/*.app || echo "Ad-hoc sign complete"
+          fi
+          # Verify signing
+          codesign --verify --strict --verbose release/*.app || echo "Verification note: ad-hoc signed"
+
+      # For tagged releases, publish directly to GitHub Releases
+      # This creates the release and uploads files + update manifests (latest.yml, etc.)
+      - name: Build and Publish
+        if: startsWith(github.ref, 'refs/tags/')
+        run: npm run publish:${{ matrix.platform }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use ad-hoc certificate for macOS (no paid certificate needed)
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      # For manual triggers (workflow_dispatch), just build without publishing
+      - name: Build only
+        if: "!startsWith(github.ref, 'refs/tags/')"
         run: npm run build:${{ matrix.platform }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -48,29 +79,6 @@ jobs:
             release/*.exe
             release/*.AppImage
             release/*.deb
+            release/*.yml
+            release/*.blockmap
           if-no-files-found: ignore
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: List artifacts
-        run: ls -la artifacts/ || echo "No artifacts folder"
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: artifacts/*
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useStore } from '../../stores/useStore'
 import './Sidebar.css'
 
@@ -6,8 +7,16 @@ interface SidebarProps {
   onClose: () => void
 }
 
+interface GroupedFiles {
+  [folder: string]: {
+    fullPath: string
+    files: string[]
+  }
+}
+
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { recentFiles, theme, toggleTheme, focusMode, setFocusMode } = useStore()
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
 
   const handleOpenFile = async () => {
     const result = await window.electronAPI.openFile()
@@ -42,6 +51,44 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     return path.split('/').pop() || path.split('\\').pop() || path
   }
 
+  const getParentFolder = (path: string) => {
+    const parts = path.split(/[/\\]/)
+    parts.pop() // Remove filename
+    return parts.join('/')
+  }
+
+  const getFolderName = (path: string) => {
+    const parts = path.split(/[/\\]/)
+    // Return last 2 parts for context (e.g., "projects/typid")
+    if (parts.length >= 2) {
+      return parts.slice(-2).join('/')
+    }
+    return parts[parts.length - 1] || 'Root'
+  }
+
+  // Group files by their parent folder
+  const groupedFiles: GroupedFiles = recentFiles.reduce((acc, filePath) => {
+    const folder = getParentFolder(filePath)
+    const folderName = getFolderName(folder)
+    if (!acc[folderName]) {
+      acc[folderName] = { fullPath: folder, files: [] }
+    }
+    acc[folderName].files.push(filePath)
+    return acc
+  }, {} as GroupedFiles)
+
+  const toggleFolder = (folder: string) => {
+    setCollapsedFolders(prev => {
+      const next = new Set(prev)
+      if (next.has(folder)) {
+        next.delete(folder)
+      } else {
+        next.add(folder)
+      }
+      return next
+    })
+  }
+
   return (
     <>
       <div
@@ -71,23 +118,53 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           {recentFiles.length > 0 && (
             <div className="sidebar-section">
               <h3 className="sidebar-heading">Recent Files</h3>
-              <ul className="recent-files">
-                {recentFiles.map((path) => (
-                  <li key={path}>
+              <div className="recent-files-grouped">
+                {Object.entries(groupedFiles).map(([folderName, { fullPath, files }]) => (
+                  <div key={folderName} className="folder-group">
                     <button
-                      className="recent-file-button"
-                      onClick={() => handleRecentFile(path)}
-                      title={path}
+                      className="folder-header"
+                      onClick={() => toggleFolder(folderName)}
+                      title={fullPath}
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        className={`folder-chevron ${collapsedFolders.has(folderName) ? 'collapsed' : ''}`}
+                      >
+                        <polyline points="6 9 12 15 18 9" />
                       </svg>
-                      {getFileName(path)}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                      </svg>
+                      <span className="folder-name">{folderName}</span>
+                      <span className="folder-count">{files.length}</span>
                     </button>
-                  </li>
+                    {!collapsedFolders.has(folderName) && (
+                      <ul className="folder-files">
+                        {files.map((path) => (
+                          <li key={path}>
+                            <button
+                              className="recent-file-button"
+                              onClick={() => handleRecentFile(path)}
+                              title={path}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                              </svg>
+                              {getFileName(path)}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
 

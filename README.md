@@ -1,6 +1,6 @@
 # Typid
 
-A minimal, beautiful Markdown editor inspired by Typora.
+A minimal, beautiful Markdown editor.
 
 ![Typid Screenshot](docs/screenshot.png)
 
@@ -17,7 +17,9 @@ A minimal, beautiful Markdown editor inspired by Typora.
 
 ## Download
 
-Download the latest version for your platform from [Releases](../../releases):
+**Web Download Page**: Visit the [Download Page](https://gellasangameshgupta.github.io/typid/) to get the latest version for your platform - it will auto-detect your OS and recommend the appropriate download.
+
+Alternatively, download directly from [Releases](../../releases):
 
 | Platform | Download |
 |----------|----------|
@@ -31,11 +33,41 @@ Download the latest version for your platform from [Releases](../../releases):
 ### macOS
 
 1. Download the `.zip` file for your Mac (ARM64 for M1/M2/M3, or Intel)
-2. Extract the ZIP file
-3. Drag `Typid.app` to your Applications folder
-4. **First launch**: Right-click the app and select "Open" (required for unsigned apps)
+2. Extract the ZIP file (you'll get `Typid.app`)
+3. Drag `Typid.app` from Downloads to your Applications folder
+4. Open **Terminal** and run this command to remove the security flag:
+   ```bash
+   cd /Applications && xattr -cr Typid.app && open Typid.app
+   ```
+5. The app will now open! macOS will remember your approval going forward.
 
-> **Note**: Since the app isn't signed with an Apple Developer certificate, macOS will show a warning. This is normal for open-source apps. Right-click → Open bypasses this.
+> **Note:** Because the app isn't signed with an Apple Developer certificate, macOS shows a security warning. This one-time command allows the app to run normally.
+
+### Troubleshooting macOS Installation
+
+**"Typid is damaged and can't be opened"**
+
+If you see this error, make sure you've moved the app to Applications first, then use the Terminal command above.
+
+**Alternative methods to fix:**
+
+**Method 1: Right-click to Open**
+1. Right-click (or Ctrl-click) on `Typid.app` in Applications
+2. Select "Open" from the menu
+3. Click "Open" in the confirmation dialog
+4. The app will open and macOS will remember it
+
+**Method 2: System Settings**
+1. Go to **System Settings** → **Privacy & Security**
+2. Scroll down to find "Typid was blocked"
+3. Click "Open Anyway"
+4. Enter your password if prompted
+
+**After first successful launch:**
+The app will launch normally without warnings in the future. macOS will remember your approval.
+
+**After first successful launch:**
+The app will launch normally without warnings in the future. macOS will remember your approval.
 
 ### Windows
 
