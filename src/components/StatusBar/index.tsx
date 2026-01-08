@@ -15,6 +15,25 @@ export function StatusBar() {
     setCharCount(chars)
   }, [currentFile.content])
 
+  // Get shortened path for display (last 2-3 folders + filename)
+  const getDisplayPath = () => {
+    if (!currentFile.filePath) return 'Untitled'
+
+    const parts = currentFile.filePath.split(/[/\\]/)
+    const fileName = parts.pop() || 'Untitled'
+
+    // Show parent folder(s) for context
+    if (parts.length >= 2) {
+      const parent = parts.pop()
+      const grandParent = parts.pop()
+      return `${grandParent}/${parent}/${fileName}`
+    } else if (parts.length === 1) {
+      return `${parts[0]}/${fileName}`
+    }
+
+    return fileName
+  }
+
   const getFileName = () => {
     if (!currentFile.filePath) return 'Untitled'
     return currentFile.filePath.split('/').pop() || currentFile.filePath.split('\\').pop() || 'Untitled'
@@ -23,10 +42,23 @@ export function StatusBar() {
   return (
     <div className="status-bar">
       <div className="status-left">
-        <span className="status-filename">
-          {getFileName()}
-          {currentFile.isDirty && <span className="status-dirty">*</span>}
-        </span>
+        {/* Breadcrumb path display */}
+        <div className="status-path" title={currentFile.filePath || 'Untitled'}>
+          {currentFile.filePath ? (
+            <>
+              <span className="path-folders">{getDisplayPath().replace(getFileName(), '')}</span>
+              <span className="path-filename">
+                {getFileName()}
+                {currentFile.isDirty && <span className="status-dirty">*</span>}
+              </span>
+            </>
+          ) : (
+            <span className="path-filename">
+              Untitled
+              {currentFile.isDirty && <span className="status-dirty">*</span>}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="status-right">

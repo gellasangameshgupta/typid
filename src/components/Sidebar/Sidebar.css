@@ -82,9 +82,75 @@
   color: var(--text-secondary);
 }
 
-/* Recent files */
-.recent-files {
+/* Recent files - Grouped by folder */
+.recent-files-grouped {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.folder-group {
+  border-radius: 6px;
+}
+
+.folder-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 8px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  text-align: left;
+}
+
+.folder-header:hover {
+  background: var(--bg-primary);
+}
+
+.folder-chevron {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  color: var(--text-muted);
+}
+
+.folder-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+
+.folder-header svg:not(.folder-chevron) {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.folder-files {
   list-style: none;
+  margin-left: 18px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
 }
 
 .recent-file-button {
@@ -92,7 +158,7 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: none;
   border: none;
   border-radius: 6px;

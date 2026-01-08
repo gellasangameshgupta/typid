@@ -12,20 +12,25 @@
     "build:mac": "vite build && electron-builder --mac",
     "build:win": "vite build && electron-builder --win",
     "build:linux": "vite build && electron-builder --linux",
+    "publish:mac": "vite build && electron-builder --mac --publish always",
+    "publish:win": "vite build && electron-builder --win --publish always",
+    "publish:linux": "vite build && electron-builder --linux --publish always",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@milkdown/kit": "^7.18.0",
-    "@milkdown/react": "^7.18.0",
-    "@milkdown/crepe": "^7.18.0",
     "@milkdown/components": "^7.18.0",
+    "@milkdown/crepe": "^7.18.0",
+    "@milkdown/kit": "^7.18.0",
     "@milkdown/plugin-highlight": "^7.18.0",
+    "@milkdown/react": "^7.18.0",
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.7.3",
     "katex": "^0.16.9",
     "mermaid": "^10.6.1",
-    "shiki": "^1.24.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "shiki": "^1.24.0",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
@@ -44,6 +49,12 @@
     "appId": "com.typid.app",
     "productName": "Typid",
     "copyright": "Copyright © 2024 Your Name",
+    "publish": {
+      "provider": "github",
+      "owner": "gellasangameshgupta",
+      "repo": "typid",
+      "releaseType": "release"
+    },
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -56,11 +67,17 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "build/icon.icns",
@@ -90,7 +107,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico"
