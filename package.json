@@ -1,8 +1,8 @@
 {
   "name": "typid",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "A minimal, beautiful Markdown editor",
-  "author": "Sangamesh Gella",
+  "author": "Sangamesh Gella <sangamesh@example.com>",
   "license": "MIT",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -48,7 +48,7 @@
   "build": {
     "appId": "com.typid.app",
     "productName": "Typid",
-    "copyright": "Copyright © 2024 Your Name",
+    "copyright": "Copyright © 2026 Sangamesh Gella",
     "publish": {
       "provider": "github",
       "owner": "gellasangameshgupta",
