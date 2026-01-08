@@ -1,0 +1,27 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="200" fill="#FAFAFA"/>
+
+  <!-- Paper effect -->
+  <rect x="180" y="140" width="664" height="744" rx="20" fill="white" stroke="#E5E5E5" stroke-width="2"/>
+
+  <!-- Text lines representing markdown -->
+  <rect x="240" y="220" width="280" height="32" rx="4" fill="#1A1A1A"/>
+  <rect x="240" y="290" width="504" height="16" rx="4" fill="#666666"/>
+  <rect x="240" y="320" width="440" height="16" rx="4" fill="#666666"/>
+  <rect x="240" y="350" width="480" height="16" rx="4" fill="#666666"/>
+
+  <!-- Accent line (like a heading) -->
+  <rect x="240" y="420" width="200" height="24" rx="4" fill="#0066CC"/>
+  <rect x="240" y="470" width="504" height="16" rx="4" fill="#666666"/>
+  <rect x="240" y="500" width="380" height="16" rx="4" fill="#666666"/>
+
+  <!-- Code block -->
+  <rect x="240" y="560" width="504" height="100" rx="8" fill="#F5F5F5"/>
+  <rect x="268" y="588" width="160" height="12" rx="2" fill="#999999"/>
+  <rect x="268" y="612" width="240" height="12" rx="2" fill="#999999"/>
+  <rect x="268" y="636" width="180" height="12" rx="2" fill="#999999"/>
+
+  <!-- Cursor -->
+  <rect x="240" y="700" width="2" height="28" fill="#0066CC"/>
+</svg>
