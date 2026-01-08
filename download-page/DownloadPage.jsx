@@ -150,8 +150,8 @@ function DownloadPage() {
           {macDownloads.length > 0 && (
             <div className="installation-note">
               <h4>macOS Installation Note</h4>
-              <p>If you see "Typid is damaged" and can't open it, right-click the app and select "Open", or run this in Terminal:</p>
-              <code>xattr -cr /Applications/Typid.app && open /Applications/Typid.app</code>
+              <p>If you see "Typid is damaged", open it from where you extracted it first (in Downloads), then move to Applications. Or run:</p>
+              <code>cd ~/Downloads && xattr -cr Typid.app && open Typid.app</code>
               <a href={releaseInfo.htmlUrl} target="_blank" rel="noopener noreferrer">View full instructions →</a>
             </div>
           )}
