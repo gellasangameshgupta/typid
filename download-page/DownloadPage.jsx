@@ -181,7 +181,6 @@ function DownloadPage() {
 function DownloadSection({ title, icon, downloads, isRecommended, onDownload }) {
   return (
     <div className={`download-section ${isRecommended ? 'recommended' : ''}`}>
-      {isRecommended && <div className="ribbon">Recommended</div>}
       <div className="section-header">
         <div className="icon">{icon}</div>
         <h2 className="section-title">{title}</h2>
