@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { Crepe } from '@milkdown/crepe'
 import { useStore } from '../../stores/useStore'
 import '@milkdown/crepe/theme/common/style.css'
@@ -7,8 +7,55 @@ import './Editor.css'
 export function Editor() {
   const editorRef = useRef<HTMLDivElement>(null)
   const crepeRef = useRef<Crepe | null>(null)
-  const { currentFile, setContent, focusMode, setDirty } = useStore()
+  const { currentFile, setContent, focusMode, typewriterMode, setDirty } = useStore()
   const fileVersionRef = useRef(0)
+  const currentBlockRef = useRef<Element | null>(null)
+
+  // Track current block for focus mode
+  const updateCurrentBlock = useCallback(() => {
+    const selection = window.getSelection()
+    if (!selection || !selection.focusNode) return
+
+    // Find the top-level block element
+    let node: Node | null = selection.focusNode
+    let blockElement: Element | null = null
+
+    // Walk up to find the direct child of ProseMirror
+    while (node) {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const parent = (node as Element).parentElement
+        if (parent?.classList.contains('ProseMirror')) {
+          blockElement = node as Element
+          break
+        }
+      }
+      node = node.parentNode
+    }
+
+    // Update current block class
+    if (blockElement !== currentBlockRef.current) {
+      currentBlockRef.current?.classList.remove('is-current-block')
+      blockElement?.classList.add('is-current-block')
+      currentBlockRef.current = blockElement
+
+      // Typewriter mode: scroll to center
+      if (typewriterMode && blockElement) {
+        blockElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }
+  }, [typewriterMode])
+
+  // Set up selection change listener for focus/typewriter modes
+  useEffect(() => {
+    if (!focusMode && !typewriterMode) return
+
+    const handleSelectionChange = () => {
+      requestAnimationFrame(updateCurrentBlock)
+    }
+
+    document.addEventListener('selectionchange', handleSelectionChange)
+    return () => document.removeEventListener('selectionchange', handleSelectionChange)
+  }, [focusMode, typewriterMode, updateCurrentBlock])
 
   // Initialize/reinitialize editor when file changes
   useEffect(() => {
@@ -89,6 +136,129 @@ export function Editor() {
     }
   }, [currentFile.filePath]) // Reinitialize when file path changes
 
+  // Image handling helper
+  const handleImageFile = useCallback(async (file: File) => {
+    const state = useStore.getState()
+    const documentPath = state.currentFile.filePath
+
+    // Read file as base64
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      const dataUrl = e.target?.result as string
+      const base64Data = dataUrl.split(',')[1]
+
+      if (documentPath) {
+        // Save to assets folder
+        const result = await window.electronAPI.saveImage({
+          documentPath,
+          imageData: base64Data,
+          imageName: file.name
+        })
+
+        if (result) {
+          // Insert markdown image with relative path
+          const markdown = `![${file.name}](${result.relativePath})`
+          insertTextAtCursor(markdown)
+        }
+      } else {
+        // No file saved yet - use base64 data URL
+        const markdown = `![${file.name}](${dataUrl})`
+        insertTextAtCursor(markdown)
+      }
+    }
+    reader.readAsDataURL(file)
+  }, [])
+
+  // Insert text at current cursor position
+  const insertTextAtCursor = (text: string) => {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+
+    const range = selection.getRangeAt(0)
+    range.deleteContents()
+
+    const textNode = document.createTextNode(text)
+    range.insertNode(textNode)
+
+    // Move cursor after inserted text
+    range.setStartAfter(textNode)
+    range.setEndAfter(textNode)
+    selection.removeAllRanges()
+    selection.addRange(range)
+
+    // Trigger input event for Milkdown to pick up the change
+    editorRef.current?.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
+  // Handle drag & drop for images
+  useEffect(() => {
+    const wrapper = editorRef.current?.parentElement
+    if (!wrapper) return
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      wrapper.classList.add('drag-over')
+    }
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      wrapper.classList.remove('drag-over')
+    }
+
+    const handleDrop = async (e: DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      wrapper.classList.remove('drag-over')
+
+      const files = e.dataTransfer?.files
+      if (!files) return
+
+      for (const file of Array.from(files)) {
+        if (file.type.startsWith('image/')) {
+          await handleImageFile(file)
+        }
+      }
+    }
+
+    wrapper.addEventListener('dragover', handleDragOver)
+    wrapper.addEventListener('dragleave', handleDragLeave)
+    wrapper.addEventListener('drop', handleDrop)
+
+    return () => {
+      wrapper.removeEventListener('dragover', handleDragOver)
+      wrapper.removeEventListener('dragleave', handleDragLeave)
+      wrapper.removeEventListener('drop', handleDrop)
+    }
+  }, [handleImageFile])
+
+  // Handle paste for images
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault()
+          const file = item.getAsFile()
+          if (file) {
+            // Generate a name for pasted images
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+            const ext = file.type.split('/')[1] || 'png'
+            const namedFile = new File([file], `pasted-image-${timestamp}.${ext}`, { type: file.type })
+            await handleImageFile(namedFile)
+          }
+          break
+        }
+      }
+    }
+
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [handleImageFile])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
@@ -129,14 +299,34 @@ export function Editor() {
         useStore.getState().setFilePath(null)
         useStore.getState().setDirty(false)
       }
+
+      // Cmd/Ctrl + Shift + F: Toggle Focus Mode
+      if (isMod && e.shiftKey && e.key === 'f') {
+        e.preventDefault()
+        const state = useStore.getState()
+        state.setFocusMode(!state.focusMode)
+      }
+
+      // Cmd/Ctrl + Shift + T: Toggle Typewriter Mode
+      if (isMod && e.shiftKey && e.key === 't') {
+        e.preventDefault()
+        const state = useStore.getState()
+        state.setTypewriterMode(!state.typewriterMode)
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  const wrapperClasses = [
+    'editor-wrapper',
+    focusMode && 'focus-mode',
+    typewriterMode && 'typewriter-mode'
+  ].filter(Boolean).join(' ')
+
   return (
-    <div className={`editor-wrapper ${focusMode ? 'focus-mode' : ''}`}>
+    <div className={wrapperClasses}>
       <div ref={editorRef} className="editor" />
     </div>
   )

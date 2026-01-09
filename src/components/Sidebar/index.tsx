@@ -15,7 +15,7 @@ interface GroupedFiles {
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const { recentFiles, theme, toggleTheme, focusMode, setFocusMode } = useStore()
+  const { recentFiles, theme, toggleTheme, focusMode, setFocusMode, typewriterMode, setTypewriterMode } = useStore()
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
 
   const handleOpenFile = async () => {
@@ -186,6 +186,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 className={`toggle-switch ${focusMode ? 'on' : ''}`}
                 onClick={() => setFocusMode(!focusMode)}
                 aria-label="Toggle focus mode"
+              >
+                <span className="toggle-knob" />
+              </button>
+            </label>
+            <label className="setting-toggle">
+              <span>Typewriter Mode</span>
+              <button
+                className={`toggle-switch ${typewriterMode ? 'on' : ''}`}
+                onClick={() => setTypewriterMode(!typewriterMode)}
+                aria-label="Toggle typewriter mode"
               >
                 <span className="toggle-knob" />
               </button>

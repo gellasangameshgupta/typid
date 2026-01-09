@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join } from 'path'
-import { readFile, writeFile } from 'fs/promises'
+import { join, dirname, basename, extname } from 'path'
+import { readFile, writeFile, mkdir } from 'fs/promises'
+import { existsSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
 import { CustomMacUpdater } from './customUpdater'
@@ -293,5 +294,49 @@ ipcMain.handle('set-title', async (_, { filePath, isDirty }: { filePath: string 
       mainWindow.setRepresentedFilename('')
       mainWindow.setDocumentEdited(isDirty)
     }
+  }
+})
+
+// Save image to assets folder next to the markdown file
+ipcMain.handle('save-image', async (_, { documentPath, imageData, imageName }: {
+  documentPath: string | null,
+  imageData: string, // base64 encoded
+  imageName: string
+}): Promise<{ relativePath: string } | null> => {
+  if (!documentPath) {
+    // No document saved yet - prompt to save first or return null
+    return null
+  }
+
+  try {
+    const docDir = dirname(documentPath)
+    const assetsDir = join(docDir, 'assets')
+
+    // Create assets directory if it doesn't exist
+    if (!existsSync(assetsDir)) {
+      await mkdir(assetsDir, { recursive: true })
+    }
+
+    // Generate unique filename if exists
+    let finalName = imageName
+    let counter = 1
+    const ext = extname(imageName)
+    const base = basename(imageName, ext)
+
+    while (existsSync(join(assetsDir, finalName))) {
+      finalName = `${base}-${counter}${ext}`
+      counter++
+    }
+
+    // Convert base64 to buffer and save
+    const imageBuffer = Buffer.from(imageData, 'base64')
+    const imagePath = join(assetsDir, finalName)
+    await writeFile(imagePath, imageBuffer)
+
+    // Return relative path for markdown
+    return { relativePath: `assets/${finalName}` }
+  } catch (error) {
+    log.error('Failed to save image:', error)
+    return null
   }
 })
