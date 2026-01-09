@@ -259,7 +259,7 @@ window.githubApi.fetchLatestRelease = async function() {
 function detectPlatform(filename) {
   const lower = filename.toLowerCase();
   if (lower.includes('mac') || lower.includes('darwin')) return 'mac';
-  if (lower.includes('win') || lower.includes('nsis')) return 'windows';
+  if (lower.includes('win') || lower.includes('nsis') || lower.endsWith('.exe') || lower.includes('setup') || lower.endsWith('.msi')) return 'windows';
   if (lower.includes('linux') || lower.includes('appimage') || lower.includes('.deb')) return 'linux';
   return 'unknown';
 }
