@@ -117,6 +117,10 @@ npm run build:linux  # Linux
 - [TypeScript](https://www.typescriptlang.org/) - Type safety
 - [Vite](https://vitejs.dev/) - Fast builds
 
+## Credits
+
+Built with [Claude Code](https://claude.ai/code) using Claude Opus 4.5.
+
 ## License
 
 MIT License - feel free to use, modify, and distribute.
