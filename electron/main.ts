@@ -340,3 +340,134 @@ ipcMain.handle('save-image', async (_, { documentPath, imageData, imageName }: {
     return null
   }
 })
+
+// AI Chat Handler
+interface AIRequest {
+  messages: Array<{ role: 'user' | 'assistant', content: string }>
+  documentContent: string
+  apiKey: string
+  provider: 'claude' | 'openai' | 'ollama'
+  ollamaEndpoint?: string
+}
+
+ipcMain.handle('ai-chat', async (_, request: AIRequest): Promise<string> => {
+  const { messages, documentContent, apiKey, provider, ollamaEndpoint } = request
+
+  // Build system prompt with document context
+  const systemPrompt = `You are an AI writing assistant helping with a markdown document.
+The user is currently working on the following document:
+
+---
+${documentContent.slice(0, 8000)}${documentContent.length > 8000 ? '\n...(document truncated)' : ''}
+---
+
+Help the user with questions about this document, writing improvements, grammar checks, explanations, and general assistance. Be concise and helpful.`
+
+  try {
+    if (provider === 'claude') {
+      return await callClaude(apiKey, systemPrompt, messages)
+    } else if (provider === 'openai') {
+      return await callOpenAI(apiKey, systemPrompt, messages)
+    } else if (provider === 'ollama') {
+      return await callOllama(ollamaEndpoint || 'http://localhost:11434', systemPrompt, messages)
+    }
+    return 'Unknown AI provider'
+  } catch (error) {
+    log.error('AI chat error:', error)
+    throw error
+  }
+})
+
+// Claude API call
+async function callClaude(
+  apiKey: string,
+  systemPrompt: string,
+  messages: Array<{ role: 'user' | 'assistant', content: string }>
+): Promise<string> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: messages.map(m => ({
+        role: m.role,
+        content: m.content
+      }))
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Claude API error: ${response.status} - ${error}`)
+  }
+
+  const data = await response.json()
+  return data.content[0].text
+}
+
+// OpenAI API call
+async function callOpenAI(
+  apiKey: string,
+  systemPrompt: string,
+  messages: Array<{ role: 'user' | 'assistant', content: string }>
+): Promise<string> {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages
+      ],
+      max_tokens: 1024
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`OpenAI API error: ${response.status} - ${error}`)
+  }
+
+  const data = await response.json()
+  return data.choices[0].message.content
+}
+
+// Ollama (local) API call
+async function callOllama(
+  endpoint: string,
+  systemPrompt: string,
+  messages: Array<{ role: 'user' | 'assistant', content: string }>
+): Promise<string> {
+  const response = await fetch(`${endpoint}/api/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'llama3.2',  // Default model, can be made configurable
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages
+      ],
+      stream: false
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Ollama API error: ${response.status} - ${error}`)
+  }
+
+  const data = await response.json()
+  return data.message.content
+}

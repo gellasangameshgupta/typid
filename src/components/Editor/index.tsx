@@ -313,6 +313,21 @@ export function Editor() {
         const state = useStore.getState()
         state.setTypewriterMode(!state.typewriterMode)
       }
+
+      // Cmd/Ctrl + Shift + A: Toggle AI Panel
+      if (isMod && e.shiftKey && e.key === 'a') {
+        e.preventDefault()
+        useStore.getState().toggleAIPanel()
+      }
+
+      // Escape: Close AI Panel if open
+      if (e.key === 'Escape') {
+        const state = useStore.getState()
+        if (state.aiPanelOpen) {
+          e.preventDefault()
+          state.setAIPanelOpen(false)
+        }
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)

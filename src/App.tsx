@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Editor } from './components/Editor'
 import { Sidebar } from './components/Sidebar'
+import { AIPanel } from './components/AIPanel'
 import { StatusBar } from './components/StatusBar'
 import { useStore } from './stores/useStore'
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { theme, currentFile, setDirty } = useStore()
+  const { theme, currentFile, setDirty, aiPanelOpen, toggleAIPanel } = useStore()
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen(prev => !prev)
@@ -54,6 +55,18 @@ function App() {
           </svg>
         </button>
         <div className="titlebar-drag" />
+        <button
+          className={`ai-toggle ${aiPanelOpen ? 'active' : ''}`}
+          onClick={toggleAIPanel}
+          aria-label="Toggle AI assistant"
+          title="AI Assistant (Cmd+Shift+A)"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z" />
+            <circle cx="8" cy="14" r="1.5" fill="currentColor" />
+            <circle cx="16" cy="14" r="1.5" fill="currentColor" />
+          </svg>
+        </button>
       </div>
 
       <div className="main-container">
@@ -61,6 +74,7 @@ function App() {
         <main className="editor-container">
           <Editor />
         </main>
+        <AIPanel />
       </div>
 
       <StatusBar />
