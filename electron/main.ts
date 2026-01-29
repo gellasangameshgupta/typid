@@ -347,11 +347,12 @@ interface AIRequest {
   documentContent: string
   apiKey: string
   provider: 'claude' | 'openai' | 'ollama'
+  model: string
   ollamaEndpoint?: string
 }
 
 ipcMain.handle('ai-chat', async (_, request: AIRequest): Promise<string> => {
-  const { messages, documentContent, apiKey, provider, ollamaEndpoint } = request
+  const { messages, documentContent, apiKey, provider, model, ollamaEndpoint } = request
 
   // Build system prompt with document context
   const systemPrompt = `You are an AI writing assistant helping with a markdown document.
@@ -365,11 +366,11 @@ Help the user with questions about this document, writing improvements, grammar 
 
   try {
     if (provider === 'claude') {
-      return await callClaude(apiKey, systemPrompt, messages)
+      return await callClaude(apiKey, systemPrompt, messages, model)
     } else if (provider === 'openai') {
-      return await callOpenAI(apiKey, systemPrompt, messages)
+      return await callOpenAI(apiKey, systemPrompt, messages, model)
     } else if (provider === 'ollama') {
-      return await callOllama(ollamaEndpoint || 'http://localhost:11434', systemPrompt, messages)
+      return await callOllama(ollamaEndpoint || 'http://localhost:11434', systemPrompt, messages, model)
     }
     return 'Unknown AI provider'
   } catch (error) {
@@ -382,7 +383,8 @@ Help the user with questions about this document, writing improvements, grammar 
 async function callClaude(
   apiKey: string,
   systemPrompt: string,
-  messages: Array<{ role: 'user' | 'assistant', content: string }>
+  messages: Array<{ role: 'user' | 'assistant', content: string }>,
+  model: string
 ): Promise<string> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -392,8 +394,8 @@ async function callClaude(
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+      model,
+      max_tokens: 4096,
       system: systemPrompt,
       messages: messages.map(m => ({
         role: m.role,
@@ -415,7 +417,8 @@ async function callClaude(
 async function callOpenAI(
   apiKey: string,
   systemPrompt: string,
-  messages: Array<{ role: 'user' | 'assistant', content: string }>
+  messages: Array<{ role: 'user' | 'assistant', content: string }>,
+  model: string
 ): Promise<string> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -424,12 +427,12 @@ async function callOpenAI(
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model,
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages
       ],
-      max_tokens: 1024
+      max_tokens: 4096
     })
   })
 
@@ -446,7 +449,8 @@ async function callOpenAI(
 async function callOllama(
   endpoint: string,
   systemPrompt: string,
-  messages: Array<{ role: 'user' | 'assistant', content: string }>
+  messages: Array<{ role: 'user' | 'assistant', content: string }>,
+  model: string
 ): Promise<string> {
   const response = await fetch(`${endpoint}/api/chat`, {
     method: 'POST',
@@ -454,7 +458,7 @@ async function callOllama(
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'llama3.2',  // Default model, can be made configurable
+      model,
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages

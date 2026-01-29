@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react'
-import { useStore, AIMessage } from '../../stores/useStore'
+import { useStore, AIMessage, AI_MODELS, AIProvider } from '../../stores/useStore'
 import './AIPanel.css'
 
 export function AIPanel() {
@@ -8,6 +8,7 @@ export function AIPanel() {
     aiMessages,
     aiLoading,
     aiProvider,
+    aiModel,
     aiApiKey,
     selectedText,
     currentFile,
@@ -16,6 +17,7 @@ export function AIPanel() {
     clearAIMessages,
     setAILoading,
     setAIProvider,
+    setAIModel,
     setAIApiKey,
     setSelectedText
   } = useStore()
@@ -71,7 +73,8 @@ export function AIPanel() {
         messages: [...aiMessages, { role: 'user', content: userMessage }],
         documentContent: currentFile.content,
         apiKey: aiApiKey,
-        provider: aiProvider
+        provider: aiProvider,
+        model: aiModel
       })
 
       // Update the assistant message with response
@@ -152,11 +155,24 @@ export function AIPanel() {
               <label>Provider</label>
               <select
                 value={aiProvider}
-                onChange={(e) => setAIProvider(e.target.value as 'claude' | 'openai' | 'ollama')}
+                onChange={(e) => setAIProvider(e.target.value as AIProvider)}
               >
                 <option value="claude">Claude</option>
                 <option value="openai">OpenAI</option>
                 <option value="ollama">Ollama (Local)</option>
+              </select>
+            </div>
+            <div className="ai-settings-row">
+              <label>Model</label>
+              <select
+                value={aiModel}
+                onChange={(e) => setAIModel(e.target.value)}
+              >
+                {AI_MODELS[aiProvider].map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
               </select>
             </div>
             {aiProvider !== 'ollama' && (

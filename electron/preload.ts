@@ -6,6 +6,7 @@ interface AIRequest {
   documentContent: string
   apiKey: string
   provider: 'claude' | 'openai' | 'ollama'
+  model: string
   ollamaEndpoint?: string
 }
 
