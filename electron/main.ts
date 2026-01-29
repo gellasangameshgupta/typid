@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
-import { join } from 'path'
-import { readFile, writeFile } from 'fs/promises'
+import { join, dirname, basename, extname } from 'path'
+import { readFile, writeFile, mkdir } from 'fs/promises'
+import { existsSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
 import { CustomMacUpdater } from './customUpdater'
@@ -295,3 +296,178 @@ ipcMain.handle('set-title', async (_, { filePath, isDirty }: { filePath: string 
     }
   }
 })
+
+// Save image to assets folder next to the markdown file
+ipcMain.handle('save-image', async (_, { documentPath, imageData, imageName }: {
+  documentPath: string | null,
+  imageData: string, // base64 encoded
+  imageName: string
+}): Promise<{ relativePath: string } | null> => {
+  if (!documentPath) {
+    // No document saved yet - prompt to save first or return null
+    return null
+  }
+
+  try {
+    const docDir = dirname(documentPath)
+    const assetsDir = join(docDir, 'assets')
+
+    // Create assets directory if it doesn't exist
+    if (!existsSync(assetsDir)) {
+      await mkdir(assetsDir, { recursive: true })
+    }
+
+    // Generate unique filename if exists
+    let finalName = imageName
+    let counter = 1
+    const ext = extname(imageName)
+    const base = basename(imageName, ext)
+
+    while (existsSync(join(assetsDir, finalName))) {
+      finalName = `${base}-${counter}${ext}`
+      counter++
+    }
+
+    // Convert base64 to buffer and save
+    const imageBuffer = Buffer.from(imageData, 'base64')
+    const imagePath = join(assetsDir, finalName)
+    await writeFile(imagePath, imageBuffer)
+
+    // Return relative path for markdown
+    return { relativePath: `assets/${finalName}` }
+  } catch (error) {
+    log.error('Failed to save image:', error)
+    return null
+  }
+})
+
+// AI Chat Handler
+interface AIRequest {
+  messages: Array<{ role: 'user' | 'assistant', content: string }>
+  documentContent: string
+  apiKey: string
+  provider: 'claude' | 'openai' | 'ollama'
+  ollamaEndpoint?: string
+}
+
+ipcMain.handle('ai-chat', async (_, request: AIRequest): Promise<string> => {
+  const { messages, documentContent, apiKey, provider, ollamaEndpoint } = request
+
+  // Build system prompt with document context
+  const systemPrompt = `You are an AI writing assistant helping with a markdown document.
+The user is currently working on the following document:
+
+---
+${documentContent.slice(0, 8000)}${documentContent.length > 8000 ? '\n...(document truncated)' : ''}
+---
+
+Help the user with questions about this document, writing improvements, grammar checks, explanations, and general assistance. Be concise and helpful.`
+
+  try {
+    if (provider === 'claude') {
+      return await callClaude(apiKey, systemPrompt, messages)
+    } else if (provider === 'openai') {
+      return await callOpenAI(apiKey, systemPrompt, messages)
+    } else if (provider === 'ollama') {
+      return await callOllama(ollamaEndpoint || 'http://localhost:11434', systemPrompt, messages)
+    }
+    return 'Unknown AI provider'
+  } catch (error) {
+    log.error('AI chat error:', error)
+    throw error
+  }
+})
+
+// Claude API call
+async function callClaude(
+  apiKey: string,
+  systemPrompt: string,
+  messages: Array<{ role: 'user' | 'assistant', content: string }>
+): Promise<string> {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: messages.map(m => ({
+        role: m.role,
+        content: m.content
+      }))
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Claude API error: ${response.status} - ${error}`)
+  }
+
+  const data = await response.json()
+  return data.content[0].text
+}
+
+// OpenAI API call
+async function callOpenAI(
+  apiKey: string,
+  systemPrompt: string,
+  messages: Array<{ role: 'user' | 'assistant', content: string }>
+): Promise<string> {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages
+      ],
+      max_tokens: 1024
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`OpenAI API error: ${response.status} - ${error}`)
+  }
+
+  const data = await response.json()
+  return data.choices[0].message.content
+}
+
+// Ollama (local) API call
+async function callOllama(
+  endpoint: string,
+  systemPrompt: string,
+  messages: Array<{ role: 'user' | 'assistant', content: string }>
+): Promise<string> {
+  const response = await fetch(`${endpoint}/api/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'llama3.2',  // Default model, can be made configurable
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages
+      ],
+      stream: false
+    })
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Ollama API error: ${response.status} - ${error}`)
+  }
+
+  const data = await response.json()
+  return data.message.content
+}

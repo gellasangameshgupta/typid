@@ -105,6 +105,31 @@ body {
   color: var(--text-primary);
 }
 
+/* AI toggle button */
+.ai-toggle {
+  -webkit-app-region: no-drag;
+  background: none;
+  border: none;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ai-toggle:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.ai-toggle.active {
+  background: var(--accent);
+  color: white;
+}
+
 /* Main container */
 .main-container {
   flex: 1;

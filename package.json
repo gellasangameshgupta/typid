@@ -1,6 +1,6 @@
 {
   "name": "typid",
-  "version": "1.0.8",
+  "version": "1.0.13",
   "description": "A minimal, beautiful Markdown editor",
   "author": "Sangamesh Gella <sangamesh@example.com>",
   "license": "MIT",
@@ -16,7 +16,10 @@
     "publish:win": "vite build && electron-builder --win --publish always",
     "publish:linux": "vite build && electron-builder --linux --publish always",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "release": "./scripts/release.sh",
+    "release:minor": "./scripts/release.sh minor",
+    "release:major": "./scripts/release.sh major"
   },
   "dependencies": {
     "@milkdown/components": "^7.18.0",
@@ -51,6 +54,7 @@
     "appId": "com.typid.app",
     "productName": "Typid",
     "copyright": "Copyright © 2026 Sangamesh Gella",
+    "afterSign": "scripts/after-sign.js",
     "publish": {
       "provider": "github",
       "owner": "gellasangameshgupta",
@@ -67,13 +71,6 @@
     ],
     "mac": {
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
         {
           "target": "zip",
           "arch": [
