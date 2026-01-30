@@ -145,20 +145,37 @@ function setupCustomMacUpdater() {
     log.error('[Main] Custom updater error:', error)
   })
 
-  // Check for updates
-  log.info('[Main] Checking for updates with custom updater...')
-  customMacUpdater.checkForUpdates().then((updateInfo) => {
-    if (!updateInfo) {
-      log.info('[Main] No updates available')
-    }
-  }).catch((err) => {
-    log.error('[Main] Failed to check for updates:', err)
-  })
+  // Check for updates every 30 minutes (in milliseconds)
+  const UPDATE_CHECK_INTERVAL = 30 * 60 * 1000
+
+  // Function to check for updates
+  const checkForUpdates = () => {
+    log.info('[Main] Checking for updates with custom updater...')
+    customMacUpdater!.checkForUpdates().then((updateInfo) => {
+      if (!updateInfo) {
+        log.info('[Main] No updates available')
+      }
+    }).catch((err) => {
+      log.error('[Main] Failed to check for updates:', err)
+    })
+  }
+
+  // Initial check
+  checkForUpdates()
+
+  // Periodic background checks
+  setInterval(() => {
+    log.info('[Main] Periodic update check (macOS)...')
+    checkForUpdates()
+  }, UPDATE_CHECK_INTERVAL)
 }
 
 // electron-updater setup for Windows/Linux
 function setupElectronUpdater() {
   log.info('[Main] Setting up electron-updater for Windows/Linux')
+
+  // Check for updates every 30 minutes (in milliseconds)
+  const UPDATE_CHECK_INTERVAL = 30 * 60 * 1000
 
   autoUpdater.on('checking-for-update', () => {
     log.info('Checking for update...')
@@ -203,7 +220,14 @@ function setupElectronUpdater() {
     log.error('Auto-updater error:', error)
   })
 
+  // Initial check
   autoUpdater.checkForUpdatesAndNotify()
+
+  // Periodic background checks
+  setInterval(() => {
+    log.info('[Main] Periodic update check...')
+    autoUpdater.checkForUpdatesAndNotify()
+  }, UPDATE_CHECK_INTERVAL)
 }
 
 app.whenReady().then(() => {
@@ -347,11 +371,12 @@ interface AIRequest {
   documentContent: string
   apiKey: string
   provider: 'claude' | 'openai' | 'ollama'
+  model: string
   ollamaEndpoint?: string
 }
 
 ipcMain.handle('ai-chat', async (_, request: AIRequest): Promise<string> => {
-  const { messages, documentContent, apiKey, provider, ollamaEndpoint } = request
+  const { messages, documentContent, apiKey, provider, model, ollamaEndpoint } = request
 
   // Build system prompt with document context
   const systemPrompt = `You are an AI writing assistant helping with a markdown document.
@@ -365,11 +390,11 @@ Help the user with questions about this document, writing improvements, grammar 
 
   try {
     if (provider === 'claude') {
-      return await callClaude(apiKey, systemPrompt, messages)
+      return await callClaude(apiKey, systemPrompt, messages, model)
     } else if (provider === 'openai') {
-      return await callOpenAI(apiKey, systemPrompt, messages)
+      return await callOpenAI(apiKey, systemPrompt, messages, model)
     } else if (provider === 'ollama') {
-      return await callOllama(ollamaEndpoint || 'http://localhost:11434', systemPrompt, messages)
+      return await callOllama(ollamaEndpoint || 'http://localhost:11434', systemPrompt, messages, model)
     }
     return 'Unknown AI provider'
   } catch (error) {
@@ -382,7 +407,8 @@ Help the user with questions about this document, writing improvements, grammar 
 async function callClaude(
   apiKey: string,
   systemPrompt: string,
-  messages: Array<{ role: 'user' | 'assistant', content: string }>
+  messages: Array<{ role: 'user' | 'assistant', content: string }>,
+  model: string
 ): Promise<string> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -392,8 +418,8 @@ async function callClaude(
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
+      model,
+      max_tokens: 4096,
       system: systemPrompt,
       messages: messages.map(m => ({
         role: m.role,
@@ -415,7 +441,8 @@ async function callClaude(
 async function callOpenAI(
   apiKey: string,
   systemPrompt: string,
-  messages: Array<{ role: 'user' | 'assistant', content: string }>
+  messages: Array<{ role: 'user' | 'assistant', content: string }>,
+  model: string
 ): Promise<string> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -424,12 +451,12 @@ async function callOpenAI(
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model,
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages
       ],
-      max_tokens: 1024
+      max_tokens: 4096
     })
   })
 
@@ -446,7 +473,8 @@ async function callOpenAI(
 async function callOllama(
   endpoint: string,
   systemPrompt: string,
-  messages: Array<{ role: 'user' | 'assistant', content: string }>
+  messages: Array<{ role: 'user' | 'assistant', content: string }>,
+  model: string
 ): Promise<string> {
   const response = await fetch(`${endpoint}/api/chat`, {
     method: 'POST',
@@ -454,7 +482,7 @@ async function callOllama(
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'llama3.2',  // Default model, can be made configurable
+      model,
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages
@@ -471,3 +499,50 @@ async function callOllama(
   const data = await response.json()
   return data.message.content
 }
+
+// Manual update check handler
+ipcMain.handle('check-for-updates', async (): Promise<{ updateAvailable: boolean, version?: string, message: string }> => {
+  log.info('[Main] Manual update check triggered')
+
+  try {
+    if (process.platform === 'darwin' && customMacUpdater) {
+      const updateInfo = await customMacUpdater.checkForUpdates()
+      if (updateInfo) {
+        return {
+          updateAvailable: true,
+          version: updateInfo.version,
+          message: `Version ${updateInfo.version} is available!`
+        }
+      }
+      return {
+        updateAvailable: false,
+        message: `You're on the latest version (${APP_VERSION})`
+      }
+    } else {
+      // For Windows/Linux, trigger the auto-updater check
+      const result = await autoUpdater.checkForUpdates()
+      if (result && result.updateInfo && result.updateInfo.version !== APP_VERSION) {
+        return {
+          updateAvailable: true,
+          version: result.updateInfo.version,
+          message: `Version ${result.updateInfo.version} is available!`
+        }
+      }
+      return {
+        updateAvailable: false,
+        message: `You're on the latest version (${APP_VERSION})`
+      }
+    }
+  } catch (error) {
+    log.error('[Main] Manual update check failed:', error)
+    return {
+      updateAvailable: false,
+      message: 'Failed to check for updates. Please try again later.'
+    }
+  }
+})
+
+// Get app version handler
+ipcMain.handle('get-app-version', (): string => {
+  return APP_VERSION
+})

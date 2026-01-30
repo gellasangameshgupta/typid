@@ -12,7 +12,10 @@ interface Window {
       documentContent: string
       apiKey: string
       provider: 'claude' | 'openai' | 'ollama'
+      model: string
       ollamaEndpoint?: string
     }) => Promise<string>
+    checkForUpdates: () => Promise<{ updateAvailable: boolean; version?: string; message: string }>
+    getAppVersion: () => Promise<string>
   }
 }

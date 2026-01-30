@@ -17,11 +17,35 @@ export interface AIMessage {
 
 export type AIProvider = 'claude' | 'openai' | 'ollama'
 
+// Available models per provider
+export const AI_MODELS = {
+  claude: [
+    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
+    { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' },
+  ],
+  openai: [
+    { id: 'gpt-4o', name: 'GPT-4o' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+    { id: 'o1', name: 'o1' },
+    { id: 'o1-mini', name: 'o1 Mini' },
+  ],
+  ollama: [
+    { id: 'llama3.2', name: 'Llama 3.2' },
+    { id: 'llama3.1', name: 'Llama 3.1' },
+    { id: 'mistral', name: 'Mistral' },
+    { id: 'codellama', name: 'Code Llama' },
+    { id: 'phi3', name: 'Phi-3' },
+  ],
+} as const
+
 interface AIState {
   aiPanelOpen: boolean
   aiMessages: AIMessage[]
   aiLoading: boolean
   aiProvider: AIProvider
+  aiModel: string
   aiApiKey: string
   ollamaEndpoint: string  // For local Ollama server
   selectedText: string    // Text user highlighted in editor
@@ -54,6 +78,7 @@ interface AppState extends AIState {
   clearAIMessages: () => void
   setAILoading: (loading: boolean) => void
   setAIProvider: (provider: AIProvider) => void
+  setAIModel: (model: string) => void
   setAIApiKey: (key: string) => void
   setOllamaEndpoint: (endpoint: string) => void
   setSelectedText: (text: string) => void
@@ -81,6 +106,7 @@ export const useStore = create<AppState>()(
       aiMessages: [],
       aiLoading: false,
       aiProvider: 'claude',
+      aiModel: 'claude-sonnet-4-20250514',
       aiApiKey: '',
       ollamaEndpoint: 'http://localhost:11434',
       selectedText: '',
@@ -185,7 +211,13 @@ export const useStore = create<AppState>()(
 
       setAILoading: (aiLoading) => set({ aiLoading }),
 
-      setAIProvider: (aiProvider) => set({ aiProvider }),
+      setAIProvider: (aiProvider) => set({
+        aiProvider,
+        // Set default model for the new provider
+        aiModel: AI_MODELS[aiProvider][0].id
+      }),
+
+      setAIModel: (aiModel) => set({ aiModel }),
 
       setAIApiKey: (aiApiKey) => set({ aiApiKey }),
 
@@ -200,6 +232,7 @@ export const useStore = create<AppState>()(
         recentFiles: state.recentFiles,
         // Persist AI settings (but NOT messages or API key for security)
         aiProvider: state.aiProvider,
+        aiModel: state.aiModel,
         ollamaEndpoint: state.ollamaEndpoint
       })
     }
