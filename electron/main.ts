@@ -417,6 +417,17 @@ interface AIRequest {
   ollamaEndpoint?: string
 }
 
+// Safe send helper - checks if webContents is still valid before sending
+function safeSend(sender: Electron.WebContents, channel: string, ...args: unknown[]): boolean {
+  try {
+    if (sender.isDestroyed()) return false
+    sender.send(channel, ...args)
+    return true
+  } catch {
+    return false
+  }
+}
+
 ipcMain.handle('ai-chat-stream', async (event, request: AIRequest): Promise<void> => {
   const { messages, documentContent, apiKey, provider, model, ollamaEndpoint } = request
   const sender = event.sender
@@ -432,7 +443,7 @@ ${documentContent.slice(0, 8000)}${documentContent.length > 8000 ? '\n...(docume
 Help the user with questions about this document, writing improvements, grammar checks, explanations, and general assistance. Be concise and helpful.`
 
   try {
-    sender.send('ai-stream-start')
+    if (!safeSend(sender, 'ai-stream-start')) return
 
     if (provider === 'claude') {
       await streamClaude(apiKey, systemPrompt, messages, model, sender)
@@ -442,10 +453,10 @@ Help the user with questions about this document, writing improvements, grammar 
       await streamOllama(ollamaEndpoint || 'http://localhost:11434', systemPrompt, messages, model, sender)
     }
 
-    sender.send('ai-stream-end')
+    safeSend(sender, 'ai-stream-end')
   } catch (error) {
     log.error('AI chat error:', error)
-    sender.send('ai-stream-error', error instanceof Error ? error.message : 'Unknown error')
+    safeSend(sender, 'ai-stream-error', error instanceof Error ? error.message : 'Unknown error')
   }
 })
 
@@ -487,6 +498,12 @@ async function streamClaude(
   const decoder = new TextDecoder()
 
   while (true) {
+    // Check if sender is destroyed before reading more
+    if (sender.isDestroyed()) {
+      reader.cancel()
+      break
+    }
+
     const { done, value } = await reader.read()
     if (done) break
 
@@ -501,7 +518,10 @@ async function streamClaude(
         try {
           const parsed = JSON.parse(data)
           if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-            sender.send('ai-stream-chunk', parsed.delta.text)
+            if (!safeSend(sender, 'ai-stream-chunk', parsed.delta.text)) {
+              reader.cancel()
+              return
+            }
           }
         } catch {
           // Ignore parse errors for incomplete chunks
@@ -547,6 +567,12 @@ async function streamOpenAI(
   const decoder = new TextDecoder()
 
   while (true) {
+    // Check if sender is destroyed before reading more
+    if (sender.isDestroyed()) {
+      reader.cancel()
+      break
+    }
+
     const { done, value } = await reader.read()
     if (done) break
 
@@ -562,7 +588,10 @@ async function streamOpenAI(
           const parsed = JSON.parse(data)
           const content = parsed.choices?.[0]?.delta?.content
           if (content) {
-            sender.send('ai-stream-chunk', content)
+            if (!safeSend(sender, 'ai-stream-chunk', content)) {
+              reader.cancel()
+              return
+            }
           }
         } catch {
           // Ignore parse errors for incomplete chunks
@@ -606,6 +635,12 @@ async function streamOllama(
   const decoder = new TextDecoder()
 
   while (true) {
+    // Check if sender is destroyed before reading more
+    if (sender.isDestroyed()) {
+      reader.cancel()
+      break
+    }
+
     const { done, value } = await reader.read()
     if (done) break
 
@@ -616,7 +651,10 @@ async function streamOllama(
       try {
         const parsed = JSON.parse(line)
         if (parsed.message?.content) {
-          sender.send('ai-stream-chunk', parsed.message.content)
+          if (!safeSend(sender, 'ai-stream-chunk', parsed.message.content)) {
+            reader.cancel()
+            return
+          }
         }
       } catch {
         // Ignore parse errors
