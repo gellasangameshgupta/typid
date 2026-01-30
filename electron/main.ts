@@ -499,3 +499,50 @@ async function callOllama(
   const data = await response.json()
   return data.message.content
 }
+
+// Manual update check handler
+ipcMain.handle('check-for-updates', async (): Promise<{ updateAvailable: boolean, version?: string, message: string }> => {
+  log.info('[Main] Manual update check triggered')
+
+  try {
+    if (process.platform === 'darwin' && customMacUpdater) {
+      const updateInfo = await customMacUpdater.checkForUpdates()
+      if (updateInfo) {
+        return {
+          updateAvailable: true,
+          version: updateInfo.version,
+          message: `Version ${updateInfo.version} is available!`
+        }
+      }
+      return {
+        updateAvailable: false,
+        message: `You're on the latest version (${APP_VERSION})`
+      }
+    } else {
+      // For Windows/Linux, trigger the auto-updater check
+      const result = await autoUpdater.checkForUpdates()
+      if (result && result.updateInfo && result.updateInfo.version !== APP_VERSION) {
+        return {
+          updateAvailable: true,
+          version: result.updateInfo.version,
+          message: `Version ${result.updateInfo.version} is available!`
+        }
+      }
+      return {
+        updateAvailable: false,
+        message: `You're on the latest version (${APP_VERSION})`
+      }
+    }
+  } catch (error) {
+    log.error('[Main] Manual update check failed:', error)
+    return {
+      updateAvailable: false,
+      message: 'Failed to check for updates. Please try again later.'
+    }
+  }
+})
+
+// Get app version handler
+ipcMain.handle('get-app-version', (): string => {
+  return APP_VERSION
+})

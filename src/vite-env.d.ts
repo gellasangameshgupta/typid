@@ -15,5 +15,7 @@ interface Window {
       model: string
       ollamaEndpoint?: string
     }) => Promise<string>
+    checkForUpdates: () => Promise<{ updateAvailable: boolean; version?: string; message: string }>
+    getAppVersion: () => Promise<string>
   }
 }

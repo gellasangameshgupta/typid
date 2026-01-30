@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useStore } from '../../stores/useStore'
 import './Sidebar.css'
 
@@ -17,6 +17,29 @@ interface GroupedFiles {
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { recentFiles, theme, toggleTheme, focusMode, setFocusMode, typewriterMode, setTypewriterMode } = useStore()
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
+  const [appVersion, setAppVersion] = useState<string>('')
+  const [updateStatus, setUpdateStatus] = useState<string>('')
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
+
+  // Get app version on mount
+  useEffect(() => {
+    window.electronAPI?.getAppVersion?.().then(setAppVersion).catch(() => {})
+  }, [])
+
+  const handleCheckForUpdates = async () => {
+    setIsCheckingUpdate(true)
+    setUpdateStatus('Checking...')
+    try {
+      const result = await window.electronAPI.checkForUpdates()
+      setUpdateStatus(result.message)
+    } catch {
+      setUpdateStatus('Failed to check for updates')
+    } finally {
+      setIsCheckingUpdate(false)
+      // Clear status after 5 seconds
+      setTimeout(() => setUpdateStatus(''), 5000)
+    }
+  }
 
   const handleOpenFile = async () => {
     const result = await window.electronAPI.openFile()
@@ -200,6 +223,30 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 <span className="toggle-knob" />
               </button>
             </label>
+          </div>
+
+          <div className="sidebar-section sidebar-about">
+            <h3 className="sidebar-heading">About</h3>
+            {appVersion && (
+              <div className="app-version">Version {appVersion}</div>
+            )}
+            <button
+              className="sidebar-button update-button"
+              onClick={handleCheckForUpdates}
+              disabled={isCheckingUpdate}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M21 12a9 9 0 1 1-9-9" />
+                <polyline points="21 3 21 9 15 9" />
+                <path d="M21 9l-6-6" />
+              </svg>
+              {isCheckingUpdate ? 'Checking...' : 'Check for Updates'}
+            </button>
+            {updateStatus && (
+              <div className={`update-status ${updateStatus.includes('available') ? 'update-available' : ''}`}>
+                {updateStatus}
+              </div>
+            )}
           </div>
         </div>
       </aside>

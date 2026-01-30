@@ -20,7 +20,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveImage: (data: { documentPath: string | null, imageData: string, imageName: string }) =>
     ipcRenderer.invoke('save-image', data),
   // AI Assistant API
-  callAI: (data: AIRequest) => ipcRenderer.invoke('ai-chat', data)
+  callAI: (data: AIRequest) => ipcRenderer.invoke('ai-chat', data),
+  // Updates
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version')
 })
 
 declare global {
@@ -39,6 +42,9 @@ declare global {
         provider: 'claude' | 'openai' | 'ollama'
         ollamaEndpoint?: string
       }) => Promise<string>
+      // Updates
+      checkForUpdates: () => Promise<{ updateAvailable: boolean, version?: string, message: string }>
+      getAppVersion: () => Promise<string>
     }
   }
 }
