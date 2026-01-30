@@ -147,9 +147,11 @@ function setupCustomMacUpdater() {
         `)
 
         customMacUpdater!.on('download-progress', (percent) => {
-          notification.webContents.executeJavaScript(
-            `document.getElementById('progress').textContent = '${percent.toFixed(1)}%'`
-          ).catch(() => {})
+          if (notification && !notification.isDestroyed()) {
+            notification.webContents.executeJavaScript(
+              `document.getElementById('progress').textContent = '${percent.toFixed(1)}%'`
+            ).catch(() => {})
+          }
         })
 
         const success = await customMacUpdater!.downloadUpdate()
