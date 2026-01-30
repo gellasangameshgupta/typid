@@ -57,12 +57,15 @@ interface AIState {
   aiApiKey: string
   ollamaEndpoint: string  // For local Ollama server
   selectedText: string    // Text user highlighted in editor
+  textToInsert: string | null  // Text to insert into editor from AI
 }
 
 interface AppState extends AIState {
   theme: 'light' | 'dark'
   focusMode: boolean
   typewriterMode: boolean
+  spellCheck: boolean
+  findReplaceOpen: boolean
   currentFile: FileState
   recentFiles: string[]
 
@@ -71,6 +74,8 @@ interface AppState extends AIState {
   toggleTheme: () => void
   setFocusMode: (enabled: boolean) => void
   setTypewriterMode: (enabled: boolean) => void
+  setSpellCheck: (enabled: boolean) => void
+  setFindReplaceOpen: (open: boolean) => void
   setContent: (content: string) => void
   setFilePath: (path: string | null) => void
   setDirty: (dirty: boolean) => void
@@ -90,6 +95,8 @@ interface AppState extends AIState {
   setAIApiKey: (key: string) => void
   setOllamaEndpoint: (endpoint: string) => void
   setSelectedText: (text: string) => void
+  insertTextToEditor: (text: string) => void
+  clearTextToInsert: () => void
 }
 
 // Helper to generate unique IDs
@@ -102,6 +109,8 @@ export const useStore = create<AppState>()(
       theme: 'light',
       focusMode: false,
       typewriterMode: false,
+      spellCheck: true,
+      findReplaceOpen: false,
       currentFile: {
         filePath: null,
         content: '',
@@ -118,6 +127,7 @@ export const useStore = create<AppState>()(
       aiApiKey: '',
       ollamaEndpoint: 'http://localhost:11434',
       selectedText: '',
+      textToInsert: null,
 
       setTheme: (theme) => set({ theme }),
 
@@ -129,6 +139,10 @@ export const useStore = create<AppState>()(
       setFocusMode: (focusMode) => set({ focusMode }),
 
       setTypewriterMode: (typewriterMode) => set({ typewriterMode }),
+
+      setSpellCheck: (spellCheck) => set({ spellCheck }),
+
+      setFindReplaceOpen: (findReplaceOpen) => set({ findReplaceOpen }),
 
       setContent: (content) =>
         set((state) => ({
@@ -257,13 +271,18 @@ export const useStore = create<AppState>()(
 
       setOllamaEndpoint: (ollamaEndpoint: string) => set({ ollamaEndpoint }),
 
-      setSelectedText: (selectedText: string) => set({ selectedText })
+      setSelectedText: (selectedText: string) => set({ selectedText }),
+
+      insertTextToEditor: (text: string) => set({ textToInsert: text }),
+
+      clearTextToInsert: () => set({ textToInsert: null })
     }),
     {
       name: 'typid-storage',
       partialize: (state) => ({
         theme: state.theme,
         recentFiles: state.recentFiles,
+        spellCheck: state.spellCheck,
         // Persist AI settings (but NOT messages or API key for security)
         aiProvider: state.aiProvider,
         aiModel: state.aiModel,

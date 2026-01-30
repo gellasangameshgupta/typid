@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, safeStorage } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, safeStorage, Menu, MenuItem } from 'electron'
 import { join, dirname, basename, extname } from 'path'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
@@ -30,7 +30,8 @@ function createWindow() {
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      spellcheck: true
     }
   })
 
@@ -43,6 +44,47 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null
+  })
+
+  // Set up context menu with spell check suggestions
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    const menu = new Menu()
+
+    // Add spell check suggestions
+    if (params.misspelledWord) {
+      for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
+        menu.append(new MenuItem({
+          label: suggestion,
+          click: () => mainWindow?.webContents.replaceMisspelling(suggestion)
+        }))
+      }
+
+      if (params.dictionarySuggestions.length > 0) {
+        menu.append(new MenuItem({ type: 'separator' }))
+      }
+
+      menu.append(new MenuItem({
+        label: 'Add to Dictionary',
+        click: () => mainWindow?.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
+      }))
+
+      menu.append(new MenuItem({ type: 'separator' }))
+    }
+
+    // Standard edit menu items
+    if (params.isEditable) {
+      menu.append(new MenuItem({ label: 'Cut', role: 'cut', enabled: params.editFlags.canCut }))
+      menu.append(new MenuItem({ label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy }))
+      menu.append(new MenuItem({ label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste }))
+      menu.append(new MenuItem({ type: 'separator' }))
+      menu.append(new MenuItem({ label: 'Select All', role: 'selectAll' }))
+    } else if (params.selectionText) {
+      menu.append(new MenuItem({ label: 'Copy', role: 'copy' }))
+    }
+
+    if (menu.items.length > 0) {
+      menu.popup()
+    }
   })
 }
 
@@ -365,7 +407,7 @@ ipcMain.handle('save-image', async (_, { documentPath, imageData, imageName }: {
   }
 })
 
-// AI Chat Handler
+// AI Chat Handler with Streaming
 interface AIRequest {
   messages: Array<{ role: 'user' | 'assistant', content: string }>
   documentContent: string
@@ -375,8 +417,9 @@ interface AIRequest {
   ollamaEndpoint?: string
 }
 
-ipcMain.handle('ai-chat', async (_, request: AIRequest): Promise<string> => {
+ipcMain.handle('ai-chat-stream', async (event, request: AIRequest): Promise<void> => {
   const { messages, documentContent, apiKey, provider, model, ollamaEndpoint } = request
+  const sender = event.sender
 
   // Build system prompt with document context
   const systemPrompt = `You are an AI writing assistant helping with a markdown document.
@@ -389,27 +432,31 @@ ${documentContent.slice(0, 8000)}${documentContent.length > 8000 ? '\n...(docume
 Help the user with questions about this document, writing improvements, grammar checks, explanations, and general assistance. Be concise and helpful.`
 
   try {
+    sender.send('ai-stream-start')
+
     if (provider === 'claude') {
-      return await callClaude(apiKey, systemPrompt, messages, model)
+      await streamClaude(apiKey, systemPrompt, messages, model, sender)
     } else if (provider === 'openai') {
-      return await callOpenAI(apiKey, systemPrompt, messages, model)
+      await streamOpenAI(apiKey, systemPrompt, messages, model, sender)
     } else if (provider === 'ollama') {
-      return await callOllama(ollamaEndpoint || 'http://localhost:11434', systemPrompt, messages, model)
+      await streamOllama(ollamaEndpoint || 'http://localhost:11434', systemPrompt, messages, model, sender)
     }
-    return 'Unknown AI provider'
+
+    sender.send('ai-stream-end')
   } catch (error) {
     log.error('AI chat error:', error)
-    throw error
+    sender.send('ai-stream-error', error instanceof Error ? error.message : 'Unknown error')
   }
 })
 
-// Claude API call
-async function callClaude(
+// Claude Streaming API call
+async function streamClaude(
   apiKey: string,
   systemPrompt: string,
   messages: Array<{ role: 'user' | 'assistant', content: string }>,
-  model: string
-): Promise<string> {
+  model: string,
+  sender: Electron.WebContents
+): Promise<void> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -420,6 +467,7 @@ async function callClaude(
     body: JSON.stringify({
       model,
       max_tokens: 4096,
+      stream: true,
       system: systemPrompt,
       messages: messages.map(m => ({
         role: m.role,
@@ -433,17 +481,44 @@ async function callClaude(
     throw new Error(`Claude API error: ${response.status} - ${error}`)
   }
 
-  const data = await response.json()
-  return data.content[0].text
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    const chunk = decoder.decode(value, { stream: true })
+    const lines = chunk.split('\n')
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.slice(6)
+        if (data === '[DONE]') continue
+
+        try {
+          const parsed = JSON.parse(data)
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+            sender.send('ai-stream-chunk', parsed.delta.text)
+          }
+        } catch {
+          // Ignore parse errors for incomplete chunks
+        }
+      }
+    }
+  }
 }
 
-// OpenAI API call
-async function callOpenAI(
+// OpenAI Streaming API call
+async function streamOpenAI(
   apiKey: string,
   systemPrompt: string,
   messages: Array<{ role: 'user' | 'assistant', content: string }>,
-  model: string
-): Promise<string> {
+  model: string,
+  sender: Electron.WebContents
+): Promise<void> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -452,6 +527,7 @@ async function callOpenAI(
     },
     body: JSON.stringify({
       model,
+      stream: true,
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages
@@ -465,17 +541,45 @@ async function callOpenAI(
     throw new Error(`OpenAI API error: ${response.status} - ${error}`)
   }
 
-  const data = await response.json()
-  return data.choices[0].message.content
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    const chunk = decoder.decode(value, { stream: true })
+    const lines = chunk.split('\n')
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.slice(6)
+        if (data === '[DONE]') continue
+
+        try {
+          const parsed = JSON.parse(data)
+          const content = parsed.choices?.[0]?.delta?.content
+          if (content) {
+            sender.send('ai-stream-chunk', content)
+          }
+        } catch {
+          // Ignore parse errors for incomplete chunks
+        }
+      }
+    }
+  }
 }
 
-// Ollama (local) API call
-async function callOllama(
+// Ollama Streaming API call
+async function streamOllama(
   endpoint: string,
   systemPrompt: string,
   messages: Array<{ role: 'user' | 'assistant', content: string }>,
-  model: string
-): Promise<string> {
+  model: string,
+  sender: Electron.WebContents
+): Promise<void> {
   const response = await fetch(`${endpoint}/api/chat`, {
     method: 'POST',
     headers: {
@@ -487,7 +591,7 @@ async function callOllama(
         { role: 'system', content: systemPrompt },
         ...messages
       ],
-      stream: false
+      stream: true
     })
   })
 
@@ -496,8 +600,29 @@ async function callOllama(
     throw new Error(`Ollama API error: ${response.status} - ${error}`)
   }
 
-  const data = await response.json()
-  return data.message.content
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    const chunk = decoder.decode(value, { stream: true })
+    const lines = chunk.split('\n').filter(line => line.trim())
+
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line)
+        if (parsed.message?.content) {
+          sender.send('ai-stream-chunk', parsed.message.content)
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }
 }
 
 // Manual update check handler

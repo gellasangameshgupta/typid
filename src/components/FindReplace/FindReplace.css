@@ -1,0 +1,99 @@
+.find-replace-bar {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.find-row,
+.replace-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.find-input {
+  width: 200px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.find-input:focus {
+  border-color: var(--accent);
+}
+
+.find-input::placeholder {
+  color: var(--text-muted);
+}
+
+.match-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 60px;
+  text-align: center;
+}
+
+.find-replace-bar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.find-replace-bar button:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.find-replace-bar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.find-replace-bar button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* CSS Custom Highlight API styles */
+::highlight(find-matches) {
+  background-color: rgba(255, 213, 0, 0.5);
+  color: inherit;
+}
+
+::highlight(find-current) {
+  background-color: rgba(255, 150, 0, 0.8);
+  color: inherit;
+}
+
+/* Dark mode adjustments */
+.dark ::highlight(find-matches) {
+  background-color: rgba(255, 213, 0, 0.4);
+}
+
+.dark ::highlight(find-current) {
+  background-color: rgba(255, 150, 0, 0.6);
+}
