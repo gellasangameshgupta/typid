@@ -145,20 +145,37 @@ function setupCustomMacUpdater() {
     log.error('[Main] Custom updater error:', error)
   })
 
-  // Check for updates
-  log.info('[Main] Checking for updates with custom updater...')
-  customMacUpdater.checkForUpdates().then((updateInfo) => {
-    if (!updateInfo) {
-      log.info('[Main] No updates available')
-    }
-  }).catch((err) => {
-    log.error('[Main] Failed to check for updates:', err)
-  })
+  // Check for updates every 30 minutes (in milliseconds)
+  const UPDATE_CHECK_INTERVAL = 30 * 60 * 1000
+
+  // Function to check for updates
+  const checkForUpdates = () => {
+    log.info('[Main] Checking for updates with custom updater...')
+    customMacUpdater!.checkForUpdates().then((updateInfo) => {
+      if (!updateInfo) {
+        log.info('[Main] No updates available')
+      }
+    }).catch((err) => {
+      log.error('[Main] Failed to check for updates:', err)
+    })
+  }
+
+  // Initial check
+  checkForUpdates()
+
+  // Periodic background checks
+  setInterval(() => {
+    log.info('[Main] Periodic update check (macOS)...')
+    checkForUpdates()
+  }, UPDATE_CHECK_INTERVAL)
 }
 
 // electron-updater setup for Windows/Linux
 function setupElectronUpdater() {
   log.info('[Main] Setting up electron-updater for Windows/Linux')
+
+  // Check for updates every 30 minutes (in milliseconds)
+  const UPDATE_CHECK_INTERVAL = 30 * 60 * 1000
 
   autoUpdater.on('checking-for-update', () => {
     log.info('Checking for update...')
@@ -203,7 +220,14 @@ function setupElectronUpdater() {
     log.error('Auto-updater error:', error)
   })
 
+  // Initial check
   autoUpdater.checkForUpdatesAndNotify()
+
+  // Periodic background checks
+  setInterval(() => {
+    log.info('[Main] Periodic update check...')
+    autoUpdater.checkForUpdatesAndNotify()
+  }, UPDATE_CHECK_INTERVAL)
 }
 
 app.whenReady().then(() => {
