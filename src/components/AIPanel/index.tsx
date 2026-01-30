@@ -1,11 +1,14 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, KeyboardEvent, useMemo } from 'react'
 import { useStore, AIMessage, AI_MODELS, AIProvider } from '../../stores/useStore'
 import './AIPanel.css'
+
+// Key for untitled documents (must match store)
+const UNTITLED_KEY = '__untitled__'
 
 export function AIPanel() {
   const {
     aiPanelOpen,
-    aiMessages,
+    aiMessagesByDocument,
     aiLoading,
     aiProvider,
     aiModel,
@@ -21,6 +24,12 @@ export function AIPanel() {
     setAIApiKey,
     setSelectedText
   } = useStore()
+
+  // Get messages for current document
+  const documentKey = currentFile.filePath || UNTITLED_KEY
+  const aiMessages = useMemo(() => {
+    return aiMessagesByDocument[documentKey] || []
+  }, [aiMessagesByDocument, documentKey])
 
   const [input, setInput] = useState('')
   const [showSettings, setShowSettings] = useState(false)
@@ -38,6 +47,29 @@ export function AIPanel() {
       inputRef.current?.focus()
     }
   }, [aiPanelOpen])
+
+  // Load API key from secure storage when provider changes
+  useEffect(() => {
+    if (aiProvider === 'ollama') return // Ollama doesn't need API key
+
+    window.electronAPI?.loadApiKey(aiProvider).then((key) => {
+      if (key) {
+        setAIApiKey(key)
+      }
+    }).catch(() => {
+      // Ignore errors during load
+    })
+  }, [aiProvider, setAIApiKey])
+
+  // Save API key when it changes
+  const handleApiKeyChange = (newKey: string) => {
+    setAIApiKey(newKey)
+    if (newKey && aiProvider !== 'ollama') {
+      window.electronAPI?.saveApiKey({ provider: aiProvider, apiKey: newKey }).catch(() => {
+        // Ignore save errors
+      })
+    }
+  }
 
   // Handle sending message
   const sendMessage = async () => {
@@ -181,7 +213,7 @@ export function AIPanel() {
                 <input
                   type="password"
                   value={aiApiKey}
-                  onChange={(e) => setAIApiKey(e.target.value)}
+                  onChange={(e) => handleApiKeyChange(e.target.value)}
                   placeholder={`Enter ${aiProvider === 'claude' ? 'Anthropic' : 'OpenAI'} API key`}
                 />
               </div>

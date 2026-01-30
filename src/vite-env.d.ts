@@ -17,5 +17,8 @@ interface Window {
     }) => Promise<string>
     checkForUpdates: () => Promise<{ updateAvailable: boolean; version?: string; message: string }>
     getAppVersion: () => Promise<string>
+    saveApiKey: (data: { provider: string; apiKey: string }) => Promise<boolean>
+    loadApiKey: (provider: string) => Promise<string | null>
+    deleteApiKey: (provider: string) => Promise<boolean>
   }
 }

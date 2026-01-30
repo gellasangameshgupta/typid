@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, safeStorage } from 'electron'
 import { join, dirname, basename, extname } from 'path'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
@@ -545,4 +545,89 @@ ipcMain.handle('check-for-updates', async (): Promise<{ updateAvailable: boolean
 // Get app version handler
 ipcMain.handle('get-app-version', (): string => {
   return APP_VERSION
+})
+
+// Secure API key storage using OS keychain
+const API_KEYS_FILE = join(app.getPath('userData'), 'api-keys.encrypted')
+
+interface StoredApiKeys {
+  claude?: string
+  openai?: string
+}
+
+// Save API key securely
+ipcMain.handle('save-api-key', async (_, data: { provider: string, apiKey: string }): Promise<boolean> => {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) {
+      log.warn('[Main] Encryption not available, falling back to basic storage')
+    }
+
+    // Load existing keys
+    let keys: StoredApiKeys = {}
+    if (existsSync(API_KEYS_FILE)) {
+      try {
+        const encrypted = await readFile(API_KEYS_FILE)
+        const decrypted = safeStorage.decryptString(encrypted)
+        keys = JSON.parse(decrypted)
+      } catch {
+        // File corrupted or empty, start fresh
+        keys = {}
+      }
+    }
+
+    // Update the key for this provider
+    keys[data.provider as keyof StoredApiKeys] = data.apiKey
+
+    // Encrypt and save
+    const encrypted = safeStorage.encryptString(JSON.stringify(keys))
+    await writeFile(API_KEYS_FILE, encrypted)
+
+    log.info(`[Main] API key saved for provider: ${data.provider}`)
+    return true
+  } catch (error) {
+    log.error('[Main] Failed to save API key:', error)
+    return false
+  }
+})
+
+// Load API key securely
+ipcMain.handle('load-api-key', async (_, provider: string): Promise<string | null> => {
+  try {
+    if (!existsSync(API_KEYS_FILE)) {
+      return null
+    }
+
+    const encrypted = await readFile(API_KEYS_FILE)
+    const decrypted = safeStorage.decryptString(encrypted)
+    const keys: StoredApiKeys = JSON.parse(decrypted)
+
+    return keys[provider as keyof StoredApiKeys] || null
+  } catch (error) {
+    log.error('[Main] Failed to load API key:', error)
+    return null
+  }
+})
+
+// Delete API key
+ipcMain.handle('delete-api-key', async (_, provider: string): Promise<boolean> => {
+  try {
+    if (!existsSync(API_KEYS_FILE)) {
+      return true
+    }
+
+    const encrypted = await readFile(API_KEYS_FILE)
+    const decrypted = safeStorage.decryptString(encrypted)
+    const keys: StoredApiKeys = JSON.parse(decrypted)
+
+    delete keys[provider as keyof StoredApiKeys]
+
+    const newEncrypted = safeStorage.encryptString(JSON.stringify(keys))
+    await writeFile(API_KEYS_FILE, newEncrypted)
+
+    log.info(`[Main] API key deleted for provider: ${provider}`)
+    return true
+  } catch (error) {
+    log.error('[Main] Failed to delete API key:', error)
+    return false
+  }
 })

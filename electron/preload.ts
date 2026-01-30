@@ -23,7 +23,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   callAI: (data: AIRequest) => ipcRenderer.invoke('ai-chat', data),
   // Updates
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
-  getAppVersion: () => ipcRenderer.invoke('get-app-version')
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  // Secure API key storage
+  saveApiKey: (data: { provider: string, apiKey: string }) => ipcRenderer.invoke('save-api-key', data),
+  loadApiKey: (provider: string) => ipcRenderer.invoke('load-api-key', provider),
+  deleteApiKey: (provider: string) => ipcRenderer.invoke('delete-api-key', provider)
 })
 
 declare global {
@@ -45,6 +49,10 @@ declare global {
       // Updates
       checkForUpdates: () => Promise<{ updateAvailable: boolean, version?: string, message: string }>
       getAppVersion: () => Promise<string>
+      // Secure API key storage
+      saveApiKey: (data: { provider: string, apiKey: string }) => Promise<boolean>
+      loadApiKey: (provider: string) => Promise<string | null>
+      deleteApiKey: (provider: string) => Promise<boolean>
     }
   }
 }
