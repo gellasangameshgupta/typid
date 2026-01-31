@@ -77,7 +77,7 @@ body {
   border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
   position: relative;
-  z-index: 100;
+  z-index: 400; /* Above sidebar (300) and AI panel (300) */
 }
 
 .titlebar-drag {
