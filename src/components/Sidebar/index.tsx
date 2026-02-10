@@ -15,7 +15,7 @@ interface GroupedFiles {
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const { recentFiles, theme, toggleTheme, focusMode, setFocusMode, typewriterMode, setTypewriterMode } = useStore()
+  const { recentFiles, theme, toggleTheme, focusMode, setFocusMode, typewriterMode, setTypewriterMode, spellCheck, setSpellCheck } = useStore()
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
   const [appVersion, setAppVersion] = useState<string>('')
   const [updateStatus, setUpdateStatus] = useState<string>('')
@@ -219,6 +219,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 className={`toggle-switch ${typewriterMode ? 'on' : ''}`}
                 onClick={() => setTypewriterMode(!typewriterMode)}
                 aria-label="Toggle typewriter mode"
+              >
+                <span className="toggle-knob" />
+              </button>
+            </label>
+            <label className="setting-toggle">
+              <span>Spell Check</span>
+              <button
+                className={`toggle-switch ${spellCheck ? 'on' : ''}`}
+                onClick={() => setSpellCheck(!spellCheck)}
+                aria-label="Toggle spell check"
               >
                 <span className="toggle-knob" />
               </button>

@@ -40,29 +40,43 @@ export const AI_MODELS = {
   ],
 } as const
 
+// Key for untitled documents
+const UNTITLED_KEY = '__untitled__'
+
+// Get document key for message storage
+const getDocumentKey = (filePath: string | null): string => {
+  return filePath || UNTITLED_KEY
+}
+
 interface AIState {
   aiPanelOpen: boolean
-  aiMessages: AIMessage[]
+  aiMessagesByDocument: Record<string, AIMessage[]>  // Messages per document
   aiLoading: boolean
   aiProvider: AIProvider
   aiModel: string
   aiApiKey: string
   ollamaEndpoint: string  // For local Ollama server
   selectedText: string    // Text user highlighted in editor
+  textToInsert: string | null  // Text to insert into editor from AI
 }
 
 interface AppState extends AIState {
   theme: 'light' | 'dark'
   focusMode: boolean
   typewriterMode: boolean
+  spellCheck: boolean
+  findReplaceOpen: boolean
   currentFile: FileState
   recentFiles: string[]
+  lastOpenFile: string | null
 
   // Actions
   setTheme: (theme: 'light' | 'dark') => void
   toggleTheme: () => void
   setFocusMode: (enabled: boolean) => void
   setTypewriterMode: (enabled: boolean) => void
+  setSpellCheck: (enabled: boolean) => void
+  setFindReplaceOpen: (open: boolean) => void
   setContent: (content: string) => void
   setFilePath: (path: string | null) => void
   setDirty: (dirty: boolean) => void
@@ -75,13 +89,15 @@ interface AppState extends AIState {
   addAIMessage: (message: Omit<AIMessage, 'id' | 'timestamp'>) => void
   updateLastAIMessage: (content: string) => void
   appendToLastAIMessage: (chunk: string) => void
-  clearAIMessages: () => void
+  clearAIMessages: () => void  // Clear messages for current document
   setAILoading: (loading: boolean) => void
   setAIProvider: (provider: AIProvider) => void
   setAIModel: (model: string) => void
   setAIApiKey: (key: string) => void
   setOllamaEndpoint: (endpoint: string) => void
   setSelectedText: (text: string) => void
+  insertTextToEditor: (text: string) => void
+  clearTextToInsert: () => void
 }
 
 // Helper to generate unique IDs
@@ -94,33 +110,46 @@ export const useStore = create<AppState>()(
       theme: 'light',
       focusMode: false,
       typewriterMode: false,
+      spellCheck: true,
+      findReplaceOpen: false,
       currentFile: {
         filePath: null,
         content: '',
         isDirty: false
       },
       recentFiles: [],
+      lastOpenFile: null,
 
       // AI state
       aiPanelOpen: false,
-      aiMessages: [],
+      aiMessagesByDocument: {},  // Messages stored per document
       aiLoading: false,
       aiProvider: 'claude',
       aiModel: 'claude-sonnet-4-20250514',
       aiApiKey: '',
       ollamaEndpoint: 'http://localhost:11434',
       selectedText: '',
+      textToInsert: null,
 
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme) => {
+        set({ theme })
+        window.electronAPI?.saveThemePreference(theme)
+      },
 
       toggleTheme: () =>
-        set((state) => ({
-          theme: state.theme === 'light' ? 'dark' : 'light'
-        })),
+        set((state) => {
+          const newTheme = state.theme === 'light' ? 'dark' : 'light'
+          window.electronAPI?.saveThemePreference(newTheme)
+          return { theme: newTheme }
+        }),
 
       setFocusMode: (focusMode) => set({ focusMode }),
 
       setTypewriterMode: (typewriterMode) => set({ typewriterMode }),
+
+      setSpellCheck: (spellCheck) => set({ spellCheck }),
+
+      setFindReplaceOpen: (findReplaceOpen) => set({ findReplaceOpen }),
 
       setContent: (content) =>
         set((state) => ({
@@ -137,7 +166,8 @@ export const useStore = create<AppState>()(
             ...state.currentFile,
             filePath,
             isDirty: false
-          }
+          },
+          lastOpenFile: filePath ?? state.lastOpenFile
         })),
 
       setDirty: (isDirty) =>
@@ -166,70 +196,102 @@ export const useStore = create<AppState>()(
         }),
 
       // AI Actions
-      setAIPanelOpen: (aiPanelOpen) => set({ aiPanelOpen }),
+      setAIPanelOpen: (aiPanelOpen: boolean) => set({ aiPanelOpen }),
 
       toggleAIPanel: () =>
         set((state) => ({ aiPanelOpen: !state.aiPanelOpen })),
 
-      addAIMessage: (message) =>
-        set((state) => ({
-          aiMessages: [
-            ...state.aiMessages,
-            {
-              ...message,
-              id: generateId(),
-              timestamp: Date.now()
-            }
-          ]
-        })),
-
-      updateLastAIMessage: (content) =>
+      addAIMessage: (message: Omit<AIMessage, 'id' | 'timestamp'>) =>
         set((state) => {
-          const messages = [...state.aiMessages]
-          if (messages.length > 0) {
-            messages[messages.length - 1] = {
-              ...messages[messages.length - 1],
+          const key = getDocumentKey(state.currentFile.filePath)
+          const currentMessages = state.aiMessagesByDocument[key] || []
+          return {
+            aiMessagesByDocument: {
+              ...state.aiMessagesByDocument,
+              [key]: [
+                ...currentMessages,
+                {
+                  ...message,
+                  id: generateId(),
+                  timestamp: Date.now()
+                }
+              ]
+            }
+          }
+        }),
+
+      updateLastAIMessage: (content: string) =>
+        set((state) => {
+          const key = getDocumentKey(state.currentFile.filePath)
+          const currentMessages = [...(state.aiMessagesByDocument[key] || [])]
+          if (currentMessages.length > 0) {
+            currentMessages[currentMessages.length - 1] = {
+              ...currentMessages[currentMessages.length - 1],
               content
             }
           }
-          return { aiMessages: messages }
-        }),
-
-      appendToLastAIMessage: (chunk) =>
-        set((state) => {
-          const messages = [...state.aiMessages]
-          if (messages.length > 0) {
-            messages[messages.length - 1] = {
-              ...messages[messages.length - 1],
-              content: messages[messages.length - 1].content + chunk
+          return {
+            aiMessagesByDocument: {
+              ...state.aiMessagesByDocument,
+              [key]: currentMessages
             }
           }
-          return { aiMessages: messages }
         }),
 
-      clearAIMessages: () => set({ aiMessages: [] }),
+      appendToLastAIMessage: (chunk: string) =>
+        set((state) => {
+          const key = getDocumentKey(state.currentFile.filePath)
+          const currentMessages = [...(state.aiMessagesByDocument[key] || [])]
+          if (currentMessages.length > 0) {
+            currentMessages[currentMessages.length - 1] = {
+              ...currentMessages[currentMessages.length - 1],
+              content: currentMessages[currentMessages.length - 1].content + chunk
+            }
+          }
+          return {
+            aiMessagesByDocument: {
+              ...state.aiMessagesByDocument,
+              [key]: currentMessages
+            }
+          }
+        }),
 
-      setAILoading: (aiLoading) => set({ aiLoading }),
+      // Clear messages for current document only
+      clearAIMessages: () =>
+        set((state) => {
+          const key = getDocumentKey(state.currentFile.filePath)
+          const newMessages = { ...state.aiMessagesByDocument }
+          delete newMessages[key]
+          return { aiMessagesByDocument: newMessages }
+        }),
 
-      setAIProvider: (aiProvider) => set({
+      setAILoading: (aiLoading: boolean) => set({ aiLoading }),
+
+      setAIProvider: (aiProvider: AIProvider) => set({
         aiProvider,
         // Set default model for the new provider
         aiModel: AI_MODELS[aiProvider][0].id
       }),
 
-      setAIModel: (aiModel) => set({ aiModel }),
+      setAIModel: (aiModel: string) => set({ aiModel }),
 
-      setAIApiKey: (aiApiKey) => set({ aiApiKey }),
+      setAIApiKey: (aiApiKey: string) => set({ aiApiKey }),
 
-      setOllamaEndpoint: (ollamaEndpoint) => set({ ollamaEndpoint }),
+      setOllamaEndpoint: (ollamaEndpoint: string) => set({ ollamaEndpoint }),
 
-      setSelectedText: (selectedText) => set({ selectedText })
+      setSelectedText: (selectedText: string) => set({ selectedText }),
+
+      insertTextToEditor: (text: string) => set({ textToInsert: text }),
+
+      clearTextToInsert: () => set({ textToInsert: null })
     }),
     {
       name: 'typid-storage',
       partialize: (state) => ({
         theme: state.theme,
         recentFiles: state.recentFiles,
+        lastOpenFile: state.lastOpenFile,
+        spellCheck: state.spellCheck,
         // Persist AI settings (but NOT messages or API key for security)
         aiProvider: state.aiProvider,
         aiModel: state.aiModel,

@@ -7,7 +7,7 @@ import './Editor.css'
 export function Editor() {
   const editorRef = useRef<HTMLDivElement>(null)
   const crepeRef = useRef<Crepe | null>(null)
-  const { currentFile, setContent, focusMode, typewriterMode, setDirty } = useStore()
+  const { currentFile, setContent, focusMode, typewriterMode, spellCheck, setDirty, textToInsert, clearTextToInsert, setSelectedText } = useStore()
   const fileVersionRef = useRef(0)
   const currentBlockRef = useRef<Element | null>(null)
 
@@ -44,6 +44,33 @@ export function Editor() {
       }
     }
   }, [typewriterMode])
+
+  // Update spellcheck when setting changes
+  useEffect(() => {
+    const proseMirror = editorRef.current?.querySelector('.ProseMirror') as HTMLElement
+    if (proseMirror) {
+      proseMirror.setAttribute('spellcheck', String(spellCheck))
+    }
+  }, [spellCheck])
+
+  // Capture text selection for AI panel
+  useEffect(() => {
+    const handleSelectionCapture = () => {
+      const text = window.getSelection()?.toString() || ''
+      setSelectedText(text)
+    }
+
+    const editor = editorRef.current
+    if (!editor) return
+
+    editor.addEventListener('mouseup', handleSelectionCapture)
+    editor.addEventListener('keyup', handleSelectionCapture)
+
+    return () => {
+      editor.removeEventListener('mouseup', handleSelectionCapture)
+      editor.removeEventListener('keyup', handleSelectionCapture)
+    }
+  }, [setSelectedText])
 
   // Set up selection change listener for focus/typewriter modes
   useEffect(() => {
@@ -118,6 +145,12 @@ export function Editor() {
 
       await crepe.create()
 
+      // Enable spellcheck on the editor based on setting
+      const proseMirror = editorRef.current?.querySelector('.ProseMirror') as HTMLElement
+      if (proseMirror) {
+        proseMirror.setAttribute('spellcheck', String(useStore.getState().spellCheck))
+      }
+
       // Only set ref if this is still the current version
       if (currentVersion === fileVersionRef.current) {
         crepeRef.current = crepe
@@ -170,7 +203,7 @@ export function Editor() {
   }, [])
 
   // Insert text at current cursor position
-  const insertTextAtCursor = (text: string) => {
+  const insertTextAtCursor = useCallback((text: string) => {
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0) return
 
@@ -188,7 +221,34 @@ export function Editor() {
 
     // Trigger input event for Milkdown to pick up the change
     editorRef.current?.dispatchEvent(new Event('input', { bubbles: true }))
-  }
+  }, [])
+
+  // Handle text insertion from AI panel
+  useEffect(() => {
+    if (textToInsert) {
+      const proseMirror = editorRef.current?.querySelector('.ProseMirror') as HTMLElement
+      if (proseMirror) {
+        // Focus the editor
+        proseMirror.focus()
+
+        // Move cursor to end of document
+        const selection = window.getSelection()
+        const range = document.createRange()
+        range.selectNodeContents(proseMirror)
+        range.collapse(false) // collapse to end
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+
+        // Insert text with line breaks using execCommand (inserts as plain text)
+        const textWithNewlines = '\n\n' + textToInsert
+        document.execCommand('insertText', false, textWithNewlines)
+
+        // Scroll to bottom
+        proseMirror.scrollTop = proseMirror.scrollHeight
+      }
+      clearTextToInsert()
+    }
+  }, [textToInsert, clearTextToInsert])
 
   // Handle drag & drop for images
   useEffect(() => {
@@ -298,6 +358,13 @@ export function Editor() {
         useStore.getState().setContent('')
         useStore.getState().setFilePath(null)
         useStore.getState().setDirty(false)
+      }
+
+      // Cmd/Ctrl + F: Find & Replace
+      if (isMod && !e.shiftKey && e.key === 'f') {
+        e.preventDefault()
+        const state = useStore.getState()
+        state.setFindReplaceOpen(!state.findReplaceOpen)
       }
 
       // Cmd/Ctrl + Shift + F: Toggle Focus Mode

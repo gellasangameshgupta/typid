@@ -1,6 +1,6 @@
 {
   "name": "typid",
-  "version": "1.1.3",
+  "version": "1.1.9",
   "description": "A minimal, beautiful Markdown editor",
   "author": "Sangamesh Gella <sangamesh@example.com>",
   "license": "MIT",
@@ -19,7 +19,10 @@
     "typecheck": "tsc --noEmit",
     "release": "./scripts/release.sh",
     "release:minor": "./scripts/release.sh minor",
-    "release:major": "./scripts/release.sh major"
+    "release:major": "./scripts/release.sh major",
+    "test": "npm run build && npx playwright test",
+    "test:headed": "npm run build && npx playwright test --headed",
+    "test:debug": "npm run build && npx playwright test --debug"
   },
   "dependencies": {
     "@milkdown/components": "^7.18.0",
@@ -34,10 +37,12 @@
     "mermaid": "^10.6.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
     "shiki": "^1.24.0",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.1",
     "@types/follow-redirects": "^1.14.4",
     "@types/katex": "^0.16.7",
     "@types/react": "^18.2.43",

@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, safeStorage, Menu, MenuItem } from 'electron'
 import { join, dirname, basename, extname } from 'path'
 import { readFile, writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
 import { CustomMacUpdater } from './customUpdater'
@@ -18,7 +18,25 @@ let mainWindow: BrowserWindow | null = null
 // Custom updater for macOS (bypasses Squirrel.Mac signature requirement)
 let customMacUpdater: CustomMacUpdater | null = null
 
+// Read persisted theme to avoid white flash on dark mode startup
+const THEME_FILE = join(app.getPath('userData'), 'theme.json')
+
+function getPersistedTheme(): 'light' | 'dark' {
+  try {
+    if (existsSync(THEME_FILE)) {
+      const data = JSON.parse(readFileSync(THEME_FILE, 'utf-8'))
+      if (data.theme === 'dark') return 'dark'
+    }
+  } catch {
+    // Ignore errors, default to light
+  }
+  return 'light'
+}
+
 function createWindow() {
+  const theme = getPersistedTheme()
+  const bgColor = theme === 'dark' ? '#1D1D1D' : '#FAFAFA'
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -26,11 +44,12 @@ function createWindow() {
     minHeight: 400,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
-    backgroundColor: '#FAFAFA',
+    backgroundColor: bgColor,
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      spellcheck: true
     }
   })
 
@@ -43,6 +62,47 @@ function createWindow() {
 
   mainWindow.on('closed', () => {
     mainWindow = null
+  })
+
+  // Set up context menu with spell check suggestions
+  mainWindow.webContents.on('context-menu', (event, params) => {
+    const menu = new Menu()
+
+    // Add spell check suggestions
+    if (params.misspelledWord) {
+      for (const suggestion of params.dictionarySuggestions.slice(0, 5)) {
+        menu.append(new MenuItem({
+          label: suggestion,
+          click: () => mainWindow?.webContents.replaceMisspelling(suggestion)
+        }))
+      }
+
+      if (params.dictionarySuggestions.length > 0) {
+        menu.append(new MenuItem({ type: 'separator' }))
+      }
+
+      menu.append(new MenuItem({
+        label: 'Add to Dictionary',
+        click: () => mainWindow?.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord)
+      }))
+
+      menu.append(new MenuItem({ type: 'separator' }))
+    }
+
+    // Standard edit menu items
+    if (params.isEditable) {
+      menu.append(new MenuItem({ label: 'Cut', role: 'cut', enabled: params.editFlags.canCut }))
+      menu.append(new MenuItem({ label: 'Copy', role: 'copy', enabled: params.editFlags.canCopy }))
+      menu.append(new MenuItem({ label: 'Paste', role: 'paste', enabled: params.editFlags.canPaste }))
+      menu.append(new MenuItem({ type: 'separator' }))
+      menu.append(new MenuItem({ label: 'Select All', role: 'selectAll' }))
+    } else if (params.selectionText) {
+      menu.append(new MenuItem({ label: 'Copy', role: 'copy' }))
+    }
+
+    if (menu.items.length > 0) {
+      menu.popup()
+    }
   })
 }
 
@@ -105,9 +165,11 @@ function setupCustomMacUpdater() {
         `)
 
         customMacUpdater!.on('download-progress', (percent) => {
-          notification.webContents.executeJavaScript(
-            `document.getElementById('progress').textContent = '${percent.toFixed(1)}%'`
-          ).catch(() => {})
+          if (notification && !notification.isDestroyed()) {
+            notification.webContents.executeJavaScript(
+              `document.getElementById('progress').textContent = '${percent.toFixed(1)}%'`
+            ).catch(() => {})
+          }
         })
 
         const success = await customMacUpdater!.downloadUpdate()
@@ -365,7 +427,7 @@ ipcMain.handle('save-image', async (_, { documentPath, imageData, imageName }: {
   }
 })
 
-// AI Chat Handler
+// AI Chat Handler with Streaming
 interface AIRequest {
   messages: Array<{ role: 'user' | 'assistant', content: string }>
   documentContent: string
@@ -375,8 +437,20 @@ interface AIRequest {
   ollamaEndpoint?: string
 }
 
-ipcMain.handle('ai-chat', async (_, request: AIRequest): Promise<string> => {
+// Safe send helper - checks if webContents is still valid before sending
+function safeSend(sender: Electron.WebContents, channel: string, ...args: unknown[]): boolean {
+  try {
+    if (sender.isDestroyed()) return false
+    sender.send(channel, ...args)
+    return true
+  } catch {
+    return false
+  }
+}
+
+ipcMain.handle('ai-chat-stream', async (event, request: AIRequest): Promise<void> => {
   const { messages, documentContent, apiKey, provider, model, ollamaEndpoint } = request
+  const sender = event.sender
 
   // Build system prompt with document context
   const systemPrompt = `You are an AI writing assistant helping with a markdown document.
@@ -389,27 +463,31 @@ ${documentContent.slice(0, 8000)}${documentContent.length > 8000 ? '\n...(docume
 Help the user with questions about this document, writing improvements, grammar checks, explanations, and general assistance. Be concise and helpful.`
 
   try {
+    if (!safeSend(sender, 'ai-stream-start')) return
+
     if (provider === 'claude') {
-      return await callClaude(apiKey, systemPrompt, messages, model)
+      await streamClaude(apiKey, systemPrompt, messages, model, sender)
     } else if (provider === 'openai') {
-      return await callOpenAI(apiKey, systemPrompt, messages, model)
+      await streamOpenAI(apiKey, systemPrompt, messages, model, sender)
     } else if (provider === 'ollama') {
-      return await callOllama(ollamaEndpoint || 'http://localhost:11434', systemPrompt, messages, model)
+      await streamOllama(ollamaEndpoint || 'http://localhost:11434', systemPrompt, messages, model, sender)
     }
-    return 'Unknown AI provider'
+
+    safeSend(sender, 'ai-stream-end')
   } catch (error) {
     log.error('AI chat error:', error)
-    throw error
+    safeSend(sender, 'ai-stream-error', error instanceof Error ? error.message : 'Unknown error')
   }
 })
 
-// Claude API call
-async function callClaude(
+// Claude Streaming API call
+async function streamClaude(
   apiKey: string,
   systemPrompt: string,
   messages: Array<{ role: 'user' | 'assistant', content: string }>,
-  model: string
-): Promise<string> {
+  model: string,
+  sender: Electron.WebContents
+): Promise<void> {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -420,6 +498,7 @@ async function callClaude(
     body: JSON.stringify({
       model,
       max_tokens: 4096,
+      stream: true,
       system: systemPrompt,
       messages: messages.map(m => ({
         role: m.role,
@@ -433,17 +512,53 @@ async function callClaude(
     throw new Error(`Claude API error: ${response.status} - ${error}`)
   }
 
-  const data = await response.json()
-  return data.content[0].text
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+
+  while (true) {
+    // Check if sender is destroyed before reading more
+    if (sender.isDestroyed()) {
+      reader.cancel()
+      break
+    }
+
+    const { done, value } = await reader.read()
+    if (done) break
+
+    const chunk = decoder.decode(value, { stream: true })
+    const lines = chunk.split('\n')
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.slice(6)
+        if (data === '[DONE]') continue
+
+        try {
+          const parsed = JSON.parse(data)
+          if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+            if (!safeSend(sender, 'ai-stream-chunk', parsed.delta.text)) {
+              reader.cancel()
+              return
+            }
+          }
+        } catch {
+          // Ignore parse errors for incomplete chunks
+        }
+      }
+    }
+  }
 }
 
-// OpenAI API call
-async function callOpenAI(
+// OpenAI Streaming API call
+async function streamOpenAI(
   apiKey: string,
   systemPrompt: string,
   messages: Array<{ role: 'user' | 'assistant', content: string }>,
-  model: string
-): Promise<string> {
+  model: string,
+  sender: Electron.WebContents
+): Promise<void> {
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -452,6 +567,7 @@ async function callOpenAI(
     },
     body: JSON.stringify({
       model,
+      stream: true,
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages
@@ -465,17 +581,54 @@ async function callOpenAI(
     throw new Error(`OpenAI API error: ${response.status} - ${error}`)
   }
 
-  const data = await response.json()
-  return data.choices[0].message.content
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+
+  while (true) {
+    // Check if sender is destroyed before reading more
+    if (sender.isDestroyed()) {
+      reader.cancel()
+      break
+    }
+
+    const { done, value } = await reader.read()
+    if (done) break
+
+    const chunk = decoder.decode(value, { stream: true })
+    const lines = chunk.split('\n')
+
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const data = line.slice(6)
+        if (data === '[DONE]') continue
+
+        try {
+          const parsed = JSON.parse(data)
+          const content = parsed.choices?.[0]?.delta?.content
+          if (content) {
+            if (!safeSend(sender, 'ai-stream-chunk', content)) {
+              reader.cancel()
+              return
+            }
+          }
+        } catch {
+          // Ignore parse errors for incomplete chunks
+        }
+      }
+    }
+  }
 }
 
-// Ollama (local) API call
-async function callOllama(
+// Ollama Streaming API call
+async function streamOllama(
   endpoint: string,
   systemPrompt: string,
   messages: Array<{ role: 'user' | 'assistant', content: string }>,
-  model: string
-): Promise<string> {
+  model: string,
+  sender: Electron.WebContents
+): Promise<void> {
   const response = await fetch(`${endpoint}/api/chat`, {
     method: 'POST',
     headers: {
@@ -487,7 +640,7 @@ async function callOllama(
         { role: 'system', content: systemPrompt },
         ...messages
       ],
-      stream: false
+      stream: true
     })
   })
 
@@ -496,8 +649,38 @@ async function callOllama(
     throw new Error(`Ollama API error: ${response.status} - ${error}`)
   }
 
-  const data = await response.json()
-  return data.message.content
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const decoder = new TextDecoder()
+
+  while (true) {
+    // Check if sender is destroyed before reading more
+    if (sender.isDestroyed()) {
+      reader.cancel()
+      break
+    }
+
+    const { done, value } = await reader.read()
+    if (done) break
+
+    const chunk = decoder.decode(value, { stream: true })
+    const lines = chunk.split('\n').filter(line => line.trim())
+
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line)
+        if (parsed.message?.content) {
+          if (!safeSend(sender, 'ai-stream-chunk', parsed.message.content)) {
+            reader.cancel()
+            return
+          }
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }
 }
 
 // Manual update check handler
@@ -545,4 +728,98 @@ ipcMain.handle('check-for-updates', async (): Promise<{ updateAvailable: boolean
 // Get app version handler
 ipcMain.handle('get-app-version', (): string => {
   return APP_VERSION
+})
+
+// Secure API key storage using OS keychain
+const API_KEYS_FILE = join(app.getPath('userData'), 'api-keys.encrypted')
+
+interface StoredApiKeys {
+  claude?: string
+  openai?: string
+}
+
+// Save API key securely
+ipcMain.handle('save-api-key', async (_, data: { provider: string, apiKey: string }): Promise<boolean> => {
+  try {
+    if (!safeStorage.isEncryptionAvailable()) {
+      log.warn('[Main] Encryption not available, falling back to basic storage')
+    }
+
+    // Load existing keys
+    let keys: StoredApiKeys = {}
+    if (existsSync(API_KEYS_FILE)) {
+      try {
+        const encrypted = await readFile(API_KEYS_FILE)
+        const decrypted = safeStorage.decryptString(encrypted)
+        keys = JSON.parse(decrypted)
+      } catch {
+        // File corrupted or empty, start fresh
+        keys = {}
+      }
+    }
+
+    // Update the key for this provider
+    keys[data.provider as keyof StoredApiKeys] = data.apiKey
+
+    // Encrypt and save
+    const encrypted = safeStorage.encryptString(JSON.stringify(keys))
+    await writeFile(API_KEYS_FILE, encrypted)
+
+    log.info(`[Main] API key saved for provider: ${data.provider}`)
+    return true
+  } catch (error) {
+    log.error('[Main] Failed to save API key:', error)
+    return false
+  }
+})
+
+// Load API key securely
+ipcMain.handle('load-api-key', async (_, provider: string): Promise<string | null> => {
+  try {
+    if (!existsSync(API_KEYS_FILE)) {
+      return null
+    }
+
+    const encrypted = await readFile(API_KEYS_FILE)
+    const decrypted = safeStorage.decryptString(encrypted)
+    const keys: StoredApiKeys = JSON.parse(decrypted)
+
+    return keys[provider as keyof StoredApiKeys] || null
+  } catch (error) {
+    log.error('[Main] Failed to load API key:', error)
+    return null
+  }
+})
+
+// Save theme preference for next launch (avoids dark mode flash)
+ipcMain.handle('save-theme', async (_, theme: string): Promise<void> => {
+  try {
+    await writeFile(THEME_FILE, JSON.stringify({ theme }), 'utf-8')
+  } catch (error) {
+    log.error('[Main] Failed to save theme preference:', error)
+  }
+})
+
+// Delete API key
+ipcMain.handle('delete-api-key', async (_, provider: string): Promise<boolean> => {
+  try {
+    if (!existsSync(API_KEYS_FILE)) {
+      return true
+    }
+
+    const encrypted = await readFile(API_KEYS_FILE)
+    const decrypted = safeStorage.decryptString(encrypted)
+    const keys: StoredApiKeys = JSON.parse(decrypted)
+
+    delete keys[provider as keyof StoredApiKeys]
+
+    const newEncrypted = safeStorage.encryptString(JSON.stringify(keys))
+    await writeFile(API_KEYS_FILE, newEncrypted)
+
+    log.info(`[Main] API key deleted for provider: ${provider}`)
+    return true
+  } catch (error) {
+    log.error('[Main] Failed to delete API key:', error)
+    return false
+  }
 })

@@ -1,11 +1,15 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, KeyboardEvent, useMemo } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { useStore, AIMessage, AI_MODELS, AIProvider } from '../../stores/useStore'
 import './AIPanel.css'
+
+// Key for untitled documents (must match store)
+const UNTITLED_KEY = '__untitled__'
 
 export function AIPanel() {
   const {
     aiPanelOpen,
-    aiMessages,
+    aiMessagesByDocument,
     aiLoading,
     aiProvider,
     aiModel,
@@ -22,8 +26,15 @@ export function AIPanel() {
     setSelectedText
   } = useStore()
 
+  // Get messages for current document
+  const documentKey = currentFile.filePath || UNTITLED_KEY
+  const aiMessages = useMemo(() => {
+    return aiMessagesByDocument[documentKey] || []
+  }, [aiMessagesByDocument, documentKey])
+
   const [input, setInput] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [showTranslateMenu, setShowTranslateMenu] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -38,6 +49,66 @@ export function AIPanel() {
       inputRef.current?.focus()
     }
   }, [aiPanelOpen])
+
+  // Load API key from secure storage when provider changes
+  useEffect(() => {
+    if (aiProvider === 'ollama') return // Ollama doesn't need API key
+
+    window.electronAPI?.loadApiKey(aiProvider).then((key) => {
+      if (key) {
+        setAIApiKey(key)
+      }
+    }).catch(() => {
+      // Ignore errors during load
+    })
+  }, [aiProvider, setAIApiKey])
+
+  // Save API key when it changes
+  const handleApiKeyChange = (newKey: string) => {
+    setAIApiKey(newKey)
+    if (newKey && aiProvider !== 'ollama') {
+      window.electronAPI?.saveApiKey({ provider: aiProvider, apiKey: newKey }).catch(() => {
+        // Ignore save errors
+      })
+    }
+  }
+
+  // Set up streaming listeners
+  useEffect(() => {
+    const unsubChunk = window.electronAPI?.onAIStreamChunk((chunk: string) => {
+      useStore.getState().appendToLastAIMessage(chunk)
+    })
+
+    const unsubEnd = window.electronAPI?.onAIStreamEnd(() => {
+      setAILoading(false)
+    })
+
+    const unsubError = window.electronAPI?.onAIStreamError((error: string) => {
+      console.error('AI stream error:', error)
+      useStore.getState().updateLastAIMessage(
+        `Sorry, I encountered an error: ${error}`
+      )
+      setAILoading(false)
+    })
+
+    return () => {
+      unsubChunk?.()
+      unsubEnd?.()
+      unsubError?.()
+    }
+  }, [setAILoading])
+
+  // Handle translate action
+  const handleTranslate = (language: string) => {
+    setShowTranslateMenu(false)
+    if (selectedText) {
+      setInput(`Translate the following text to ${language}:\n\n${selectedText}`)
+    } else {
+      setInput(`Translate this document to ${language}`)
+    }
+  }
+
+  const TRANSLATE_LANGUAGES = ['Spanish', 'French', 'German', 'Japanese', 'Chinese', 'Portuguese', 'Korean', 'Italian']
 
   // Handle sending message
   const sendMessage = async () => {
@@ -68,23 +139,19 @@ export function AIPanel() {
     addAIMessage({ role: 'assistant', content: '' })
 
     try {
-      // Call AI via Electron IPC
-      const response = await window.electronAPI.callAI({
+      // Call AI with streaming via Electron IPC
+      await window.electronAPI.streamAI({
         messages: [...aiMessages, { role: 'user', content: userMessage }],
         documentContent: currentFile.content,
         apiKey: aiApiKey,
         provider: aiProvider,
         model: aiModel
       })
-
-      // Update the assistant message with response
-      useStore.getState().updateLastAIMessage(response)
     } catch (error) {
       console.error('AI call failed:', error)
       useStore.getState().updateLastAIMessage(
         'Sorry, I encountered an error. Please check your API key and try again.'
       )
-    } finally {
       setAILoading(false)
     }
   }
@@ -181,7 +248,7 @@ export function AIPanel() {
                 <input
                   type="password"
                   value={aiApiKey}
-                  onChange={(e) => setAIApiKey(e.target.value)}
+                  onChange={(e) => handleApiKeyChange(e.target.value)}
                   placeholder={`Enter ${aiProvider === 'claude' ? 'Anthropic' : 'OpenAI'} API key`}
                 />
               </div>
@@ -215,6 +282,23 @@ export function AIPanel() {
                 <button onClick={() => setInput('Suggest improvements')}>
                   Suggest improvements
                 </button>
+                <button onClick={() => setInput('Generate a structured outline for this document with main sections and key points')}>
+                  Generate outline
+                </button>
+                <div className="ai-translate-wrapper">
+                  <button onClick={() => setShowTranslateMenu(!showTranslateMenu)}>
+                    Translate {selectedText ? 'selection' : 'document'}
+                  </button>
+                  {showTranslateMenu && (
+                    <div className="ai-translate-menu">
+                      {TRANSLATE_LANGUAGES.map((lang) => (
+                        <button key={lang} onClick={() => handleTranslate(lang)}>
+                          {lang}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
@@ -275,6 +359,22 @@ export function AIPanel() {
 // Message bubble component
 function MessageBubble({ message }: { message: AIMessage }) {
   const isUser = message.role === 'user'
+  const { insertTextToEditor } = useStore()
+  const [copied, setCopied] = useState(false)
+
+  const handleInsert = () => {
+    if (message.content) {
+      insertTextToEditor(message.content)
+    }
+  }
+
+  const handleCopy = async () => {
+    if (message.content) {
+      await navigator.clipboard.writeText(message.content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
 
   return (
     <div className={`ai-message ${isUser ? 'ai-message-user' : 'ai-message-assistant'}`}>
@@ -286,7 +386,43 @@ function MessageBubble({ message }: { message: AIMessage }) {
         </div>
       )}
       <div className="ai-message-content">
-        {message.content || <span className="ai-typing">Thinking...</span>}
+        {message.content ? (
+          isUser ? (
+            message.content
+          ) : (
+            <ReactMarkdown>{message.content}</ReactMarkdown>
+          )
+        ) : (
+          <span className="ai-typing">Thinking...</span>
+        )}
+        {!isUser && message.content && (
+          <div className="ai-message-actions">
+            <button onClick={handleInsert} title="Insert into document">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Insert
+            </button>
+            <button onClick={handleCopy} title="Copy to clipboard">
+              {copied ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                  Copied
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                  </svg>
+                  Copy
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
