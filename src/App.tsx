@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { AIPanel } from './components/AIPanel'
 import { StatusBar } from './components/StatusBar'
 import { FindReplace } from './components/FindReplace'
+import { WorkspaceSearch } from './components/WorkspaceSearch'
 import { useStore } from './stores/useStore'
 
 function App() {
@@ -101,6 +102,7 @@ function App() {
       </div>
 
       <StatusBar />
+      <WorkspaceSearch />
     </div>
   )
 }

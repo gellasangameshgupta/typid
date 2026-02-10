@@ -110,7 +110,15 @@ export function AIPanel() {
 
   const TRANSLATE_LANGUAGES = ['Spanish', 'French', 'German', 'Japanese', 'Chinese', 'Portuguese', 'Korean', 'Italian']
 
+  // Handle rewrite action
+  const handleRewrite = () => {
+    if (!selectedText) return
+    setInput(`Rewrite the following text to be clearer and more polished. Return ONLY the rewritten text, no explanations:\n\n${selectedText}`)
+  }
+
   // Handle sending message
+  const [lastRewriteSource, setLastRewriteSource] = useState<string | null>(null)
+
   const sendMessage = async () => {
     const trimmedInput = input.trim()
     if (!trimmedInput || aiLoading) return
@@ -119,6 +127,14 @@ export function AIPanel() {
     if (aiProvider !== 'ollama' && !aiApiKey) {
       setShowSettings(true)
       return
+    }
+
+    // Track if this was a rewrite request with selected text
+    const isRewrite = selectedText && trimmedInput.includes('Rewrite the following text')
+    if (isRewrite) {
+      setLastRewriteSource(selectedText)
+    } else {
+      setLastRewriteSource(null)
     }
 
     // Build context message
@@ -285,6 +301,11 @@ export function AIPanel() {
                 <button onClick={() => setInput('Generate a structured outline for this document with main sections and key points')}>
                   Generate outline
                 </button>
+                {selectedText && (
+                  <button onClick={handleRewrite}>
+                    Rewrite selection
+                  </button>
+                )}
                 <div className="ai-translate-wrapper">
                   <button onClick={() => setShowTranslateMenu(!showTranslateMenu)}>
                     Translate {selectedText ? 'selection' : 'document'}
@@ -302,8 +323,17 @@ export function AIPanel() {
               </div>
             </div>
           ) : (
-            aiMessages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
+            aiMessages.map((msg, idx) => (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                rewriteSource={
+                  // Show replace option on the last assistant message if it was a rewrite
+                  msg.role === 'assistant' && idx === aiMessages.length - 1 && !aiLoading && lastRewriteSource
+                    ? lastRewriteSource
+                    : null
+                }
+              />
             ))
           )}
           <div ref={messagesEndRef} />
@@ -357,14 +387,20 @@ export function AIPanel() {
 }
 
 // Message bubble component
-function MessageBubble({ message }: { message: AIMessage }) {
+function MessageBubble({ message, rewriteSource }: { message: AIMessage, rewriteSource?: string | null }) {
   const isUser = message.role === 'user'
-  const { insertTextToEditor } = useStore()
+  const { insertTextToEditor, replaceTextInEditor } = useStore()
   const [copied, setCopied] = useState(false)
 
   const handleInsert = () => {
     if (message.content) {
       insertTextToEditor(message.content)
+    }
+  }
+
+  const handleReplace = () => {
+    if (message.content && rewriteSource) {
+      replaceTextInEditor(rewriteSource, message.content)
     }
   }
 
@@ -397,6 +433,17 @@ function MessageBubble({ message }: { message: AIMessage }) {
         )}
         {!isUser && message.content && (
           <div className="ai-message-actions">
+            {rewriteSource && (
+              <button onClick={handleReplace} title="Replace selected text in document" className="ai-action-replace">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M17 1l4 4-4 4" />
+                  <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                  <path d="M7 23l-4-4 4-4" />
+                  <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                </svg>
+                Replace selection
+              </button>
+            )}
             <button onClick={handleInsert} title="Insert into document">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 5v14M5 12h14" />

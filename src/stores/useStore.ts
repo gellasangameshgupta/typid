@@ -58,9 +58,20 @@ interface AIState {
   ollamaEndpoint: string  // For local Ollama server
   selectedText: string    // Text user highlighted in editor
   textToInsert: string | null  // Text to insert into editor from AI
+  textToReplace: { original: string, replacement: string } | null
 }
 
-interface AppState extends AIState {
+interface WorkspaceState {
+  workspacePath: string | null
+  workspaceFiles: FileTreeNode[]
+  expandedFolders: Set<string>
+  workspaceSearchOpen: boolean
+  workspaceSearchQuery: string
+  workspaceSearchResults: SearchResult[]
+  workspaceSearchLoading: boolean
+}
+
+interface AppState extends AIState, WorkspaceState {
   theme: 'light' | 'dark'
   focusMode: boolean
   typewriterMode: boolean
@@ -98,6 +109,18 @@ interface AppState extends AIState {
   setSelectedText: (text: string) => void
   insertTextToEditor: (text: string) => void
   clearTextToInsert: () => void
+  replaceTextInEditor: (original: string, replacement: string) => void
+  clearTextToReplace: () => void
+
+  // Workspace Actions
+  setWorkspacePath: (path: string | null) => void
+  setWorkspaceFiles: (files: FileTreeNode[]) => void
+  toggleWorkspaceFolder: (path: string) => void
+  clearWorkspace: () => void
+  setWorkspaceSearchOpen: (open: boolean) => void
+  setWorkspaceSearchQuery: (query: string) => void
+  setWorkspaceSearchResults: (results: SearchResult[]) => void
+  setWorkspaceSearchLoading: (loading: boolean) => void
 }
 
 // Helper to generate unique IDs
@@ -130,6 +153,16 @@ export const useStore = create<AppState>()(
       ollamaEndpoint: 'http://localhost:11434',
       selectedText: '',
       textToInsert: null,
+      textToReplace: null,
+
+      // Workspace state
+      workspacePath: null,
+      workspaceFiles: [],
+      expandedFolders: new Set<string>(),
+      workspaceSearchOpen: false,
+      workspaceSearchQuery: '',
+      workspaceSearchResults: [],
+      workspaceSearchLoading: false,
 
       setTheme: (theme) => {
         set({ theme })
@@ -283,7 +316,46 @@ export const useStore = create<AppState>()(
 
       insertTextToEditor: (text: string) => set({ textToInsert: text }),
 
-      clearTextToInsert: () => set({ textToInsert: null })
+      clearTextToInsert: () => set({ textToInsert: null }),
+
+      replaceTextInEditor: (original: string, replacement: string) =>
+        set({ textToReplace: { original, replacement } }),
+
+      clearTextToReplace: () => set({ textToReplace: null }),
+
+      // Workspace Actions
+      setWorkspacePath: (workspacePath: string | null) => set({ workspacePath }),
+
+      setWorkspaceFiles: (workspaceFiles: FileTreeNode[]) => set({ workspaceFiles }),
+
+      toggleWorkspaceFolder: (path: string) =>
+        set((state) => {
+          const next = new Set(state.expandedFolders)
+          if (next.has(path)) {
+            next.delete(path)
+          } else {
+            next.add(path)
+          }
+          return { expandedFolders: next }
+        }),
+
+      clearWorkspace: () =>
+        set({
+          workspacePath: null,
+          workspaceFiles: [],
+          expandedFolders: new Set<string>(),
+          workspaceSearchOpen: false,
+          workspaceSearchQuery: '',
+          workspaceSearchResults: []
+        }),
+
+      setWorkspaceSearchOpen: (workspaceSearchOpen: boolean) => set({ workspaceSearchOpen }),
+
+      setWorkspaceSearchQuery: (workspaceSearchQuery: string) => set({ workspaceSearchQuery }),
+
+      setWorkspaceSearchResults: (workspaceSearchResults: SearchResult[]) => set({ workspaceSearchResults }),
+
+      setWorkspaceSearchLoading: (workspaceSearchLoading: boolean) => set({ workspaceSearchLoading })
     }),
     {
       name: 'typid-storage',
@@ -295,7 +367,9 @@ export const useStore = create<AppState>()(
         // Persist AI settings (but NOT messages or API key for security)
         aiProvider: state.aiProvider,
         aiModel: state.aiModel,
-        ollamaEndpoint: state.ollamaEndpoint
+        ollamaEndpoint: state.ollamaEndpoint,
+        // Persist workspace path (tree is rebuilt on load)
+        workspacePath: state.workspacePath
       })
     }
   )

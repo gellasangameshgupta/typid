@@ -1,5 +1,26 @@
 /// <reference types="vite/client" />
 
+interface FileTreeNode {
+  path: string
+  name: string
+  type: 'file' | 'directory'
+  children?: FileTreeNode[]
+  depth: number
+}
+
+interface SearchMatch {
+  lineNumber: number
+  lineText: string
+  matchStart: number
+  matchEnd: number
+}
+
+interface SearchResult {
+  filePath: string
+  fileName: string
+  matches: SearchMatch[]
+}
+
 interface Window {
   electronAPI: {
     openFile: () => Promise<{ filePath: string; content: string } | null>
@@ -28,5 +49,9 @@ interface Window {
     saveApiKey: (data: { provider: string; apiKey: string }) => Promise<boolean>
     loadApiKey: (provider: string) => Promise<string | null>
     deleteApiKey: (provider: string) => Promise<boolean>
+    // Workspace
+    openFolder: () => Promise<string | null>
+    listDirectory: (dirPath: string) => Promise<FileTreeNode[]>
+    searchWorkspace: (data: { workspacePath: string; query: string }) => Promise<SearchResult[]>
   }
 }

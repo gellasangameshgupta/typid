@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, safeStorage, Menu, MenuItem } from 'electron'
 import { join, dirname, basename, extname } from 'path'
-import { readFile, writeFile, mkdir } from 'fs/promises'
+import { readFile, writeFile, mkdir, readdir, stat } from 'fs/promises'
 import { existsSync, readFileSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
@@ -821,5 +821,175 @@ ipcMain.handle('delete-api-key', async (_, provider: string): Promise<boolean> =
   } catch (error) {
     log.error('[Main] Failed to delete API key:', error)
     return false
+  }
+})
+
+// Folder workspace: Open folder dialog
+ipcMain.handle('open-folder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openDirectory']
+  })
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null
+  }
+
+  return result.filePaths[0]
+})
+
+// Folder workspace: Recursively list directory for markdown/text files
+interface FileTreeNode {
+  path: string
+  name: string
+  type: 'file' | 'directory'
+  children?: FileTreeNode[]
+  depth: number
+}
+
+const SUPPORTED_EXTENSIONS = new Set(['.md', '.markdown', '.txt'])
+const SKIP_DIRS = new Set(['node_modules', '.git', '.DS_Store', '__pycache__', '.vscode', '.idea'])
+
+async function scanDirectory(dirPath: string, depth: number = 0, maxDepth: number = 10): Promise<FileTreeNode[]> {
+  if (depth > maxDepth) return []
+
+  const entries = await readdir(dirPath, { withFileTypes: true })
+  const nodes: FileTreeNode[] = []
+
+  // Separate dirs and files, sort alphabetically
+  const dirs = entries.filter(e => e.isDirectory() && !e.name.startsWith('.') && !SKIP_DIRS.has(e.name)).sort((a, b) => a.name.localeCompare(b.name))
+  const files = entries.filter(e => e.isFile() && SUPPORTED_EXTENSIONS.has(extname(e.name).toLowerCase())).sort((a, b) => a.name.localeCompare(b.name))
+
+  // Process directories first
+  for (const dir of dirs) {
+    const fullPath = join(dirPath, dir.name)
+    const children = await scanDirectory(fullPath, depth + 1, maxDepth)
+    // Only include directory if it has markdown files somewhere in it
+    if (children.length > 0) {
+      nodes.push({
+        path: fullPath,
+        name: dir.name,
+        type: 'directory',
+        children,
+        depth
+      })
+    }
+  }
+
+  // Then files
+  for (const file of files) {
+    nodes.push({
+      path: join(dirPath, file.name),
+      name: file.name,
+      type: 'file',
+      depth
+    })
+  }
+
+  return nodes
+}
+
+ipcMain.handle('list-directory', async (_, dirPath: string): Promise<FileTreeNode[]> => {
+  try {
+    return await scanDirectory(dirPath)
+  } catch (error) {
+    log.error('[Main] Failed to list directory:', error)
+    return []
+  }
+})
+
+// Search across workspace files
+interface SearchMatch {
+  lineNumber: number
+  lineText: string
+  matchStart: number
+  matchEnd: number
+}
+
+interface SearchResult {
+  filePath: string
+  fileName: string
+  matches: SearchMatch[]
+}
+
+ipcMain.handle('search-workspace', async (_, { workspacePath, query }: { workspacePath: string, query: string }): Promise<SearchResult[]> => {
+  if (!query || !workspacePath) return []
+
+  try {
+    const results: SearchResult[] = []
+    const MAX_RESULTS = 100
+    const MAX_MATCHES_PER_FILE = 10
+    const MAX_FILE_SIZE = 1024 * 1024 // 1MB
+    let totalMatches = 0
+
+    // Get all files from the workspace tree
+    const collectFiles = (nodes: FileTreeNode[]): string[] => {
+      const files: string[] = []
+      for (const node of nodes) {
+        if (node.type === 'file') {
+          files.push(node.path)
+        } else if (node.children) {
+          files.push(...collectFiles(node.children))
+        }
+      }
+      return files
+    }
+
+    const tree = await scanDirectory(workspacePath)
+    const filePaths = collectFiles(tree)
+
+    let regex: RegExp
+    try {
+      regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+    } catch {
+      return []
+    }
+
+    for (const filePath of filePaths) {
+      if (totalMatches >= MAX_RESULTS) break
+
+      try {
+        const fileStat = await stat(filePath)
+        if (fileStat.size > MAX_FILE_SIZE) continue
+
+        const content = await readFile(filePath, 'utf-8')
+        const lines = content.split('\n')
+        const matches: SearchMatch[] = []
+
+        for (let i = 0; i < lines.length; i++) {
+          if (matches.length >= MAX_MATCHES_PER_FILE) break
+          if (totalMatches >= MAX_RESULTS) break
+
+          const line = lines[i]
+          let match: RegExpExecArray | null
+          regex.lastIndex = 0
+
+          while ((match = regex.exec(line)) !== null) {
+            if (matches.length >= MAX_MATCHES_PER_FILE || totalMatches >= MAX_RESULTS) break
+            matches.push({
+              lineNumber: i + 1,
+              lineText: line.slice(0, 200), // Truncate long lines
+              matchStart: match.index,
+              matchEnd: match.index + match[0].length
+            })
+            totalMatches++
+          }
+        }
+
+        if (matches.length > 0) {
+          results.push({
+            filePath,
+            fileName: basename(filePath),
+            matches
+          })
+        }
+      } catch {
+        // Skip files that can't be read
+      }
+    }
+
+    return results
+  } catch (error) {
+    log.error('[Main] Failed to search workspace:', error)
+    return []
   }
 })

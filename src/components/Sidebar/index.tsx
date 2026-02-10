@@ -14,8 +14,78 @@ interface GroupedFiles {
   }
 }
 
+// Recursive file tree node component
+function FileTreeItem({ node }: { node: FileTreeNode }) {
+  const { currentFile, expandedFolders, toggleWorkspaceFolder } = useStore()
+  const isExpanded = expandedFolders.has(node.path)
+  const isActive = node.type === 'file' && currentFile.filePath === node.path
+
+  const handleClick = async () => {
+    if (node.type === 'directory') {
+      toggleWorkspaceFolder(node.path)
+    } else {
+      try {
+        const content = await window.electronAPI.readFile(node.path)
+        useStore.getState().setFilePath(node.path)
+        useStore.getState().setContent(content)
+        useStore.getState().setDirty(false)
+        useStore.getState().addRecentFile(node.path)
+      } catch {
+        console.error('Could not open file:', node.path)
+      }
+    }
+  }
+
+  return (
+    <div className="tree-node">
+      <button
+        className={`tree-item ${node.type === 'directory' ? 'tree-folder' : 'tree-file'} ${isActive ? 'tree-active' : ''}`}
+        onClick={handleClick}
+        title={node.path}
+        style={{ paddingLeft: `${12 + node.depth * 16}px` }}
+      >
+        {node.type === 'directory' ? (
+          <>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className={`tree-chevron ${isExpanded ? '' : 'collapsed'}`}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          </>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginLeft: 18 }}>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+        )}
+        <span className="tree-name">{node.name}</span>
+      </button>
+      {node.type === 'directory' && isExpanded && node.children && (
+        <div className="tree-children">
+          {node.children.map((child) => (
+            <FileTreeItem key={child.path} node={child} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const { recentFiles, theme, toggleTheme, focusMode, setFocusMode, typewriterMode, setTypewriterMode, spellCheck, setSpellCheck } = useStore()
+  const {
+    recentFiles, theme, toggleTheme, focusMode, setFocusMode,
+    typewriterMode, setTypewriterMode, spellCheck, setSpellCheck,
+    workspacePath, workspaceFiles, setWorkspacePath, setWorkspaceFiles, clearWorkspace
+  } = useStore()
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
   const [appVersion, setAppVersion] = useState<string>('')
   const [updateStatus, setUpdateStatus] = useState<string>('')
@@ -25,6 +95,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   useEffect(() => {
     window.electronAPI?.getAppVersion?.().then(setAppVersion).catch(() => {})
   }, [])
+
+  // Load workspace tree on mount if workspace is persisted
+  useEffect(() => {
+    if (workspacePath) {
+      window.electronAPI?.listDirectory(workspacePath)
+        .then((files) => setWorkspaceFiles(files))
+        .catch(() => {})
+    }
+  }, [workspacePath, setWorkspaceFiles])
 
   const handleCheckForUpdates = async () => {
     setIsCheckingUpdate(true)
@@ -36,7 +115,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       setUpdateStatus('Failed to check for updates')
     } finally {
       setIsCheckingUpdate(false)
-      // Clear status after 5 seconds
       setTimeout(() => setUpdateStatus(''), 5000)
     }
   }
@@ -57,6 +135,19 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     onClose()
   }
 
+  const handleOpenFolder = async () => {
+    const folderPath = await window.electronAPI.openFolder()
+    if (folderPath) {
+      setWorkspacePath(folderPath)
+      const files = await window.electronAPI.listDirectory(folderPath)
+      setWorkspaceFiles(files)
+    }
+  }
+
+  const handleCloseWorkspace = () => {
+    clearWorkspace()
+  }
+
   const handleRecentFile = async (path: string) => {
     try {
       const content = await window.electronAPI.readFile(path)
@@ -65,7 +156,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       useStore.getState().setDirty(false)
       onClose()
     } catch {
-      // File might not exist anymore
       console.error('Could not open file:', path)
     }
   }
@@ -76,17 +166,20 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const getParentFolder = (path: string) => {
     const parts = path.split(/[/\\]/)
-    parts.pop() // Remove filename
+    parts.pop()
     return parts.join('/')
   }
 
   const getFolderName = (path: string) => {
     const parts = path.split(/[/\\]/)
-    // Return last 2 parts for context (e.g., "projects/typid")
     if (parts.length >= 2) {
       return parts.slice(-2).join('/')
     }
     return parts[parts.length - 1] || 'Root'
+  }
+
+  const getWorkspaceName = (path: string) => {
+    return path.split('/').pop() || path.split('\\').pop() || path
   }
 
   // Group files by their parent folder
@@ -136,9 +229,45 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               </svg>
               Open File
             </button>
+            <button className="sidebar-button" onClick={handleOpenFolder}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                <line x1="12" y1="11" x2="12" y2="17" />
+                <line x1="9" y1="14" x2="15" y2="14" />
+              </svg>
+              Open Folder
+            </button>
           </div>
 
-          {recentFiles.length > 0 && (
+          {/* Workspace file tree */}
+          {workspacePath && (
+            <div className="sidebar-section">
+              <div className="workspace-header">
+                <h3 className="sidebar-heading">{getWorkspaceName(workspacePath)}</h3>
+                <button
+                  className="workspace-close"
+                  onClick={handleCloseWorkspace}
+                  title="Close workspace"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="workspace-tree">
+                {workspaceFiles.length > 0 ? (
+                  workspaceFiles.map((node) => (
+                    <FileTreeItem key={node.path} node={node} />
+                  ))
+                ) : (
+                  <div className="workspace-empty">No markdown files found</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Recent files (only when no workspace) */}
+          {!workspacePath && recentFiles.length > 0 && (
             <div className="sidebar-section">
               <h3 className="sidebar-heading">Recent Files</h3>
               <div className="recent-files-grouped">

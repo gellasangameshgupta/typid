@@ -7,7 +7,7 @@ import './Editor.css'
 export function Editor() {
   const editorRef = useRef<HTMLDivElement>(null)
   const crepeRef = useRef<Crepe | null>(null)
-  const { currentFile, setContent, focusMode, typewriterMode, spellCheck, setDirty, textToInsert, clearTextToInsert, setSelectedText } = useStore()
+  const { currentFile, setContent, focusMode, typewriterMode, spellCheck, setDirty, textToInsert, clearTextToInsert, setSelectedText, textToReplace, clearTextToReplace } = useStore()
   const fileVersionRef = useRef(0)
   const currentBlockRef = useRef<Element | null>(null)
 
@@ -250,6 +250,78 @@ export function Editor() {
     }
   }, [textToInsert, clearTextToInsert])
 
+  // Handle text replacement from AI panel (rewrite selection)
+  useEffect(() => {
+    if (textToReplace) {
+      const { original, replacement } = textToReplace
+      const currentContent = useStore.getState().currentFile.content
+      const idx = currentContent.indexOf(original)
+      if (idx !== -1) {
+        const newContent = currentContent.slice(0, idx) + replacement + currentContent.slice(idx + original.length)
+        // Update store content — this will trigger editor reinit via filePath change
+        // Instead, use setContent which marks dirty but doesn't reinit
+        setContent(newContent)
+
+        // Also update the live editor by destroying and recreating
+        if (crepeRef.current) {
+          crepeRef.current.destroy()
+          crepeRef.current = null
+        }
+        if (editorRef.current) {
+          editorRef.current.innerHTML = ''
+        }
+
+        const reinit = async () => {
+          const crepe = new Crepe({
+            root: editorRef.current!,
+            defaultValue: newContent,
+            features: {
+              [Crepe.Feature.CodeMirror]: true,
+              [Crepe.Feature.ListItem]: true,
+              [Crepe.Feature.LinkTooltip]: true,
+              [Crepe.Feature.ImageBlock]: true,
+              [Crepe.Feature.BlockEdit]: true,
+              [Crepe.Feature.Placeholder]: true,
+              [Crepe.Feature.Cursor]: true,
+              [Crepe.Feature.Latex]: true,
+              [Crepe.Feature.Table]: true,
+            },
+            featureConfigs: {
+              [Crepe.Feature.Placeholder]: {
+                text: 'Start writing...',
+                mode: 'block' as const,
+              },
+              [Crepe.Feature.Latex]: {
+                katexOptions: { throwOnError: false },
+              },
+            },
+          })
+
+          crepe.on((listener) => {
+            listener.markdownUpdated((_ctx, markdown, prevMarkdown) => {
+              if (markdown !== prevMarkdown) {
+                setContent(markdown)
+                setDirty(true)
+              }
+            })
+          })
+
+          await crepe.create()
+
+          const proseMirror = editorRef.current?.querySelector('.ProseMirror') as HTMLElement
+          if (proseMirror) {
+            proseMirror.setAttribute('spellcheck', String(useStore.getState().spellCheck))
+          }
+
+          crepeRef.current = crepe
+        }
+
+        reinit()
+      }
+      clearTextToReplace()
+    }
+  }, [textToReplace, clearTextToReplace, setContent, setDirty])
+
   // Handle drag & drop for images
   useEffect(() => {
     const wrapper = editorRef.current?.parentElement
@@ -379,6 +451,15 @@ export function Editor() {
         e.preventDefault()
         const state = useStore.getState()
         state.setTypewriterMode(!state.typewriterMode)
+      }
+
+      // Cmd/Ctrl + Shift + G: Workspace Search
+      if (isMod && e.shiftKey && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault()
+        const state = useStore.getState()
+        if (state.workspacePath) {
+          state.setWorkspaceSearchOpen(!state.workspaceSearchOpen)
+        }
       }
 
       // Cmd/Ctrl + Shift + A: Toggle AI Panel

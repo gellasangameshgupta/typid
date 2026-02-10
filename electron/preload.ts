@@ -49,7 +49,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Secure API key storage
   saveApiKey: (data: { provider: string, apiKey: string }) => ipcRenderer.invoke('save-api-key', data),
   loadApiKey: (provider: string) => ipcRenderer.invoke('load-api-key', provider),
-  deleteApiKey: (provider: string) => ipcRenderer.invoke('delete-api-key', provider)
+  deleteApiKey: (provider: string) => ipcRenderer.invoke('delete-api-key', provider),
+  // Workspace
+  openFolder: () => ipcRenderer.invoke('open-folder'),
+  listDirectory: (dirPath: string) => ipcRenderer.invoke('list-directory', dirPath),
+  searchWorkspace: (data: { workspacePath: string, query: string }) => ipcRenderer.invoke('search-workspace', data)
 })
 
 declare global {
@@ -82,6 +86,31 @@ declare global {
       saveApiKey: (data: { provider: string, apiKey: string }) => Promise<boolean>
       loadApiKey: (provider: string) => Promise<string | null>
       deleteApiKey: (provider: string) => Promise<boolean>
+      // Workspace
+      openFolder: () => Promise<string | null>
+      listDirectory: (dirPath: string) => Promise<FileTreeNode[]>
+      searchWorkspace: (data: { workspacePath: string, query: string }) => Promise<SearchResult[]>
     }
   }
+}
+
+interface FileTreeNode {
+  path: string
+  name: string
+  type: 'file' | 'directory'
+  children?: FileTreeNode[]
+  depth: number
+}
+
+interface SearchMatch {
+  lineNumber: number
+  lineText: string
+  matchStart: number
+  matchEnd: number
+}
+
+interface SearchResult {
+  filePath: string
+  fileName: string
+  matches: SearchMatch[]
 }

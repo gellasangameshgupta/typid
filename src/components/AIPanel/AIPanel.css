@@ -531,6 +531,16 @@
   border-color: var(--accent);
 }
 
+.ai-message-actions button.ai-action-replace {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ai-message-actions button.ai-action-replace:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
 .ai-message-actions button svg {
   flex-shrink: 0;
 }

@@ -272,3 +272,105 @@
   color: var(--accent);
   background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
+
+/* Workspace header */
+.workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 8px;
+}
+
+.workspace-header .sidebar-heading {
+  margin-bottom: 0;
+}
+
+.workspace-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.workspace-close:hover {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Workspace file tree */
+.workspace-tree {
+  margin-top: 8px;
+  max-height: calc(100vh - 500px);
+  overflow-y: auto;
+}
+
+.workspace-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.tree-node {
+  user-select: none;
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tree-item:hover {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.tree-item.tree-active {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+}
+
+.tree-chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+  color: var(--text-muted);
+}
+
+.tree-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+
+.tree-item svg:not(.tree-chevron) {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.tree-item.tree-active svg {
+  color: var(--accent);
+}
+
+.tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
