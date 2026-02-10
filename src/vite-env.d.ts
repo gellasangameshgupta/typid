@@ -20,6 +20,8 @@ interface Window {
     onAIStreamChunk: (callback: (chunk: string) => void) => () => void
     onAIStreamEnd: (callback: () => void) => () => void
     onAIStreamError: (callback: (error: string) => void) => () => void
+    // Theme persistence
+    saveThemePreference: (theme: string) => Promise<void>
     // Updates
     checkForUpdates: () => Promise<{ updateAvailable: boolean; version?: string; message: string }>
     getAppVersion: () => Promise<string>

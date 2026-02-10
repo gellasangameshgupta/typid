@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, safeStorage, Menu, MenuItem } from 'electron'
 import { join, dirname, basename, extname } from 'path'
 import { readFile, writeFile, mkdir } from 'fs/promises'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { autoUpdater } from 'electron-updater'
 import log from 'electron-log'
 import { CustomMacUpdater } from './customUpdater'
@@ -18,7 +18,25 @@ let mainWindow: BrowserWindow | null = null
 // Custom updater for macOS (bypasses Squirrel.Mac signature requirement)
 let customMacUpdater: CustomMacUpdater | null = null
 
+// Read persisted theme to avoid white flash on dark mode startup
+const THEME_FILE = join(app.getPath('userData'), 'theme.json')
+
+function getPersistedTheme(): 'light' | 'dark' {
+  try {
+    if (existsSync(THEME_FILE)) {
+      const data = JSON.parse(readFileSync(THEME_FILE, 'utf-8'))
+      if (data.theme === 'dark') return 'dark'
+    }
+  } catch {
+    // Ignore errors, default to light
+  }
+  return 'light'
+}
+
 function createWindow() {
+  const theme = getPersistedTheme()
+  const bgColor = theme === 'dark' ? '#1D1D1D' : '#FAFAFA'
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -26,7 +44,7 @@ function createWindow() {
     minHeight: 400,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
-    backgroundColor: '#FAFAFA',
+    backgroundColor: bgColor,
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -770,6 +788,15 @@ ipcMain.handle('load-api-key', async (_, provider: string): Promise<string | nul
   } catch (error) {
     log.error('[Main] Failed to load API key:', error)
     return null
+  }
+})
+
+// Save theme preference for next launch (avoids dark mode flash)
+ipcMain.handle('save-theme', async (_, theme: string): Promise<void> => {
+  try {
+    await writeFile(THEME_FILE, JSON.stringify({ theme }), 'utf-8')
+  } catch (error) {
+    log.error('[Main] Failed to save theme preference:', error)
   }
 })
 

@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('ai-stream-error', handler)
     return () => ipcRenderer.removeListener('ai-stream-error', handler)
   },
+  // Theme persistence
+  saveThemePreference: (theme: string) => ipcRenderer.invoke('save-theme', theme),
   // Updates
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
@@ -71,6 +73,8 @@ declare global {
       onAIStreamChunk: (callback: (chunk: string) => void) => () => void
       onAIStreamEnd: (callback: () => void) => () => void
       onAIStreamError: (callback: (error: string) => void) => () => void
+      // Theme persistence
+      saveThemePreference: (theme: string) => Promise<void>
       // Updates
       checkForUpdates: () => Promise<{ updateAvailable: boolean, version?: string, message: string }>
       getAppVersion: () => Promise<string>

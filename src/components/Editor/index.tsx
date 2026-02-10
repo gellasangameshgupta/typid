@@ -7,7 +7,7 @@ import './Editor.css'
 export function Editor() {
   const editorRef = useRef<HTMLDivElement>(null)
   const crepeRef = useRef<Crepe | null>(null)
-  const { currentFile, setContent, focusMode, typewriterMode, spellCheck, setDirty, textToInsert, clearTextToInsert } = useStore()
+  const { currentFile, setContent, focusMode, typewriterMode, spellCheck, setDirty, textToInsert, clearTextToInsert, setSelectedText } = useStore()
   const fileVersionRef = useRef(0)
   const currentBlockRef = useRef<Element | null>(null)
 
@@ -52,6 +52,25 @@ export function Editor() {
       proseMirror.setAttribute('spellcheck', String(spellCheck))
     }
   }, [spellCheck])
+
+  // Capture text selection for AI panel
+  useEffect(() => {
+    const handleSelectionCapture = () => {
+      const text = window.getSelection()?.toString() || ''
+      setSelectedText(text)
+    }
+
+    const editor = editorRef.current
+    if (!editor) return
+
+    editor.addEventListener('mouseup', handleSelectionCapture)
+    editor.addEventListener('keyup', handleSelectionCapture)
+
+    return () => {
+      editor.removeEventListener('mouseup', handleSelectionCapture)
+      editor.removeEventListener('keyup', handleSelectionCapture)
+    }
+  }, [setSelectedText])
 
   // Set up selection change listener for focus/typewriter modes
   useEffect(() => {

@@ -34,6 +34,7 @@ export function AIPanel() {
 
   const [input, setInput] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [showTranslateMenu, setShowTranslateMenu] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -96,6 +97,18 @@ export function AIPanel() {
       unsubError?.()
     }
   }, [setAILoading])
+
+  // Handle translate action
+  const handleTranslate = (language: string) => {
+    setShowTranslateMenu(false)
+    if (selectedText) {
+      setInput(`Translate the following text to ${language}:\n\n${selectedText}`)
+    } else {
+      setInput(`Translate this document to ${language}`)
+    }
+  }
+
+  const TRANSLATE_LANGUAGES = ['Spanish', 'French', 'German', 'Japanese', 'Chinese', 'Portuguese', 'Korean', 'Italian']
 
   // Handle sending message
   const sendMessage = async () => {
@@ -269,6 +282,23 @@ export function AIPanel() {
                 <button onClick={() => setInput('Suggest improvements')}>
                   Suggest improvements
                 </button>
+                <button onClick={() => setInput('Generate a structured outline for this document with main sections and key points')}>
+                  Generate outline
+                </button>
+                <div className="ai-translate-wrapper">
+                  <button onClick={() => setShowTranslateMenu(!showTranslateMenu)}>
+                    Translate {selectedText ? 'selection' : 'document'}
+                  </button>
+                  {showTranslateMenu && (
+                    <div className="ai-translate-menu">
+                      {TRANSLATE_LANGUAGES.map((lang) => (
+                        <button key={lang} onClick={() => handleTranslate(lang)}>
+                          {lang}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ) : (

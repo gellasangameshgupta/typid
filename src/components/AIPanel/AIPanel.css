@@ -194,6 +194,39 @@
   color: var(--accent);
 }
 
+/* Translate dropdown */
+.ai-translate-wrapper {
+  position: relative;
+}
+
+.ai-translate-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 8px;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.ai-translate-menu button {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: var(--bg-primary);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.ai-translate-menu button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* Message bubbles */
 .ai-message {
   display: flex;

@@ -68,6 +68,7 @@ interface AppState extends AIState {
   findReplaceOpen: boolean
   currentFile: FileState
   recentFiles: string[]
+  lastOpenFile: string | null
 
   // Actions
   setTheme: (theme: 'light' | 'dark') => void
@@ -117,6 +118,7 @@ export const useStore = create<AppState>()(
         isDirty: false
       },
       recentFiles: [],
+      lastOpenFile: null,
 
       // AI state
       aiPanelOpen: false,
@@ -129,12 +131,17 @@ export const useStore = create<AppState>()(
       selectedText: '',
       textToInsert: null,
 
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme) => {
+        set({ theme })
+        window.electronAPI?.saveThemePreference(theme)
+      },
 
       toggleTheme: () =>
-        set((state) => ({
-          theme: state.theme === 'light' ? 'dark' : 'light'
-        })),
+        set((state) => {
+          const newTheme = state.theme === 'light' ? 'dark' : 'light'
+          window.electronAPI?.saveThemePreference(newTheme)
+          return { theme: newTheme }
+        }),
 
       setFocusMode: (focusMode) => set({ focusMode }),
 
@@ -159,7 +166,8 @@ export const useStore = create<AppState>()(
             ...state.currentFile,
             filePath,
             isDirty: false
-          }
+          },
+          lastOpenFile: filePath ?? state.lastOpenFile
         })),
 
       setDirty: (isDirty) =>
@@ -282,6 +290,7 @@ export const useStore = create<AppState>()(
       partialize: (state) => ({
         theme: state.theme,
         recentFiles: state.recentFiles,
+        lastOpenFile: state.lastOpenFile,
         spellCheck: state.spellCheck,
         // Persist AI settings (but NOT messages or API key for security)
         aiProvider: state.aiProvider,

@@ -9,10 +9,31 @@ import { useStore } from './stores/useStore'
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { theme, currentFile, setDirty, aiPanelOpen, toggleAIPanel } = useStore()
+  const [hasRestoredFile, setHasRestoredFile] = useState(false)
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen(prev => !prev)
   }, [])
+
+  // Restore last open file on startup
+  useEffect(() => {
+    if (hasRestoredFile) return
+    setHasRestoredFile(true)
+
+    const { lastOpenFile, setContent, setFilePath, addRecentFile } = useStore.getState()
+    if (!lastOpenFile) return
+
+    window.electronAPI?.readFile(lastOpenFile)
+      .then((content) => {
+        setContent(content)
+        setFilePath(lastOpenFile)
+        setDirty(false)
+        addRecentFile(lastOpenFile)
+      })
+      .catch(() => {
+        // File may have been deleted — silently ignore
+      })
+  }, [hasRestoredFile, setDirty])
 
   // Update window title when file or dirty state changes
   useEffect(() => {
